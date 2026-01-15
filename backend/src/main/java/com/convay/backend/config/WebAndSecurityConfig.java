@@ -34,7 +34,7 @@ public class WebAndSecurityConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**") // all endpoints
-                        .allowedOrigins(Credentials.MONA_FRONTEND_URL, "http://localhost:5173") // allow this origin
+                        .allowedOrigins(Credentials.FARIHA_FRONTEND_URL, "http://localhost:5173") // allow this origin
                         .allowedMethods("GET","POST","PUT","DELETE","OPTIONS")
                         .allowedHeaders("*");
             }
