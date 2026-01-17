@@ -1,49 +1,29 @@
-import { useState } from 'react'
+import { useEffect, useState} from 'react'
+import { Routes, Route } from 'react-router-dom'
 import './App.css'
 import SingleRoom from './SingleRoom'
+import Homepage from './Homepage'
 
-const API_BASE = import.meta.env.VITE_API_BASE
+const API_BASE = import.meta.env.VITE_API_BASE_MONA
 
-function App() {
-  const [count, setCount] = useState(0)
+const App = () => {
+  const [localStream, setLocalStream] = useState(null);
 
-  const clickEvent = async () => {
-    const response = await fetch(`https://${API_BASE}/process`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': 'true',  // ← Add this header
-      },
-    })
+  useEffect(() => {
+    const fetchLocalMedia = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      setLocalStream(stream);
+    }
 
-    const data = await response.json();
-    const number = parseInt(data.message);
-    const msg = `${number}${Math.floor(number / 10) !== 1 ? (number % 10 === 1 ? 'st' : (number % 10 === 2 ? 'nd' : (number % 10 === 3 ? 'rd' : 'th'))) : 'th'} messsge`;
-
-    const response2 = await fetch(`https://${API_BASE}/process`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'ngrok-skip-browser-warning': 'true',  // ← Add this header
-      },
-      body: JSON.stringify({ message: msg }),
-    })
-
-    console.log(await response2.text());
-
-    setCount(data.message)
-  }
+    fetchLocalMedia();
+  }, []);
 
   return (
     <>
-      <div className="card">
-        <button onClick={clickEvent}>
-          count is {count}
-        </button>
-      </div>
-      <div>
-        <SingleRoom />
-      </div>
+      <Routes>
+        <Route path="" element={<Homepage localStream={localStream} />} />
+        <Route path="room/:roomId" element={<SingleRoom localStream={localStream} />} />
+      </Routes>
     </>
   )
 }

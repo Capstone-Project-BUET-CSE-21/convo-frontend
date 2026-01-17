@@ -17,8 +17,6 @@ public class SignalingHandler extends TextWebSocketHandler {
 
     // Map roomId -> set of sessions in that room
     private final Map<String, Set<WebSocketSession>> rooms = new ConcurrentHashMap<>();
-    // Map session -> peerId for peer identification
-    private final Map<WebSocketSession, String> sessionToPeerId = new ConcurrentHashMap<>();
     // Map session -> roomId for tracking which room each session belongs to
     private final Map<WebSocketSession, String> sessionToRoom = new ConcurrentHashMap<>();
 
@@ -26,21 +24,14 @@ public class SignalingHandler extends TextWebSocketHandler {
 
     @Override
     public void handleTextMessage(WebSocketSession session, TextMessage message) throws Exception {
-
-        // Expect message in JSON format
-        // {
-        //   "type": "join" | "offer" | "answer" | "ice",
-        //   "roomId": "room1",
-        //   "payload": { ... }
-        // }
-
         String payload = message.getPayload();
         Map<String, Object> data = JSON.parse(payload);
 
         String type = (String) data.get("type");
         String roomId = (String) data.get("roomId");
-        Object msgPayload = data.get("payload");
-        String senderId = sessionToPeerId.getOrDefault(session, session.getId());
+        // Object msgPayload = data.get("payload");
+
+        String senderId = session.getId();
 
         switch (type) {
             case "join" -> {
@@ -48,7 +39,6 @@ public class SignalingHandler extends TextWebSocketHandler {
                 Set<WebSocketSession> roomSessions = rooms.get(roomId);
                 roomSessions.add(session);
                 // Store peerId mapping
-                sessionToPeerId.put(session, senderId);
                 sessionToRoom.put(session, roomId);
                 
                 // Send all existing peers to the newly joined peer
@@ -56,7 +46,7 @@ public class SignalingHandler extends TextWebSocketHandler {
                     "type", "existing-peers",
                     "peers", roomSessions.stream()
                             .filter(s -> !s.equals(session))
-                            .map(s -> sessionToPeerId.getOrDefault(s, s.getId()))
+                            .map(s -> s.getId())
                             .toList()
                 );
                 session.sendMessage(new TextMessage(JSON.stringify(existingPeersMsg)));
@@ -79,17 +69,6 @@ public class SignalingHandler extends TextWebSocketHandler {
                                  " (Total peers in room: " + roomSessions.size() + ")");
             }
 
-            // case "offer", "answer", "ice" -> {
-            //     // Broadcast to all other peers in the room
-            //     Set<WebSocketSession> sessions = rooms.get(roomId);
-            //     if (sessions != null) {
-            //         for (WebSocketSession s : sessions) {
-            //             if (!s.equals(session)) {
-            //                 s.sendMessage(new TextMessage(payload));
-            //             }
-            //         }
-            //     }
-            // }
             case "offer", "answer", "ice" -> {
                 String recipientId = (String) data.get("to");
                 Set<WebSocketSession> sessions = rooms.get(roomId);
@@ -98,8 +77,9 @@ public class SignalingHandler extends TextWebSocketHandler {
                     if (recipientId != null) {
                         // Send to specific peer
                         for (WebSocketSession s : sessions) {
-                            String sId = sessionToPeerId.getOrDefault(s, s.getId());
+                            String sId = s.getId();
                             if (sId.equals(recipientId) && !s.equals(session)) {
+                                Object msgPayload = data.get("payload");
                                 Map<String, Object> routedMsg = Map.of(
                                     "type", type,
                                     "from", senderId,
@@ -118,6 +98,7 @@ public class SignalingHandler extends TextWebSocketHandler {
                         // Broadcast to all other peers
                         for (WebSocketSession s : sessions) {
                             if (!s.equals(session)) {
+                                Object msgPayload = data.get("payload");
                                 Map<String, Object> broadcastMsg = Map.of(
                                     "type", type,
                                     "from", senderId,
@@ -142,7 +123,7 @@ public class SignalingHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
         // Get peerId BEFORE removing from map
-        String peerId = sessionToPeerId.getOrDefault(session, session.getId());
+        String peerId = session.getId();
         String roomId = sessionToRoom.get(session);
         
         System.out.println("Peer " + peerId + " attempting to disconnect from room " + roomId);
@@ -180,10 +161,8 @@ public class SignalingHandler extends TextWebSocketHandler {
         }
         
         // Clean up mappings
-        sessionToPeerId.remove(session);
         sessionToRoom.remove(session);
         
         System.out.println("Session " + session.getId() + " fully disconnected");
     }
-
 }
