@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 
-const Homepage = ({ localStream }) => {
+const Homepage = ({ localStream, command, setCommand }) => {
     const [isEnteringMeetingId, setIsEnteringMeetingId] = useState(false);
-    const [command, setCommand] = useState("");
     const [meetingId, setMeetingId] = useState("");
 
     const localVideoRef = useRef(null);
@@ -42,6 +41,8 @@ const Homepage = ({ localStream }) => {
 
 Homepage.propTypes = {
     localStream: PropTypes.object.isRequired,
+    command: PropTypes.string.isRequired,
+    setCommand: PropTypes.func.isRequired
 };
 
 

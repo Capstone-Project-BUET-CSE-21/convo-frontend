@@ -8,6 +8,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_MONA
 
 const App = () => {
   const [localStream, setLocalStream] = useState(null);
+  const [command, setCommand] = useState("");
 
   useEffect(() => {
     const fetchLocalMedia = async () => {
@@ -21,8 +22,8 @@ const App = () => {
   return (
     <>
       <Routes>
-        <Route path="" element={<Homepage localStream={localStream} />} />
-        <Route path="room/:roomId" element={<SingleRoom localStream={localStream} />} />
+        <Route path="" element={<Homepage localStream={localStream} command={command} setCommand={setCommand} />} />
+        <Route path="room/:roomId" element={<SingleRoom localStream={localStream} command={command.toLowerCase()} />} />
       </Routes>
     </>
   )

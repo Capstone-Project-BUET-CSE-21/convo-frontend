@@ -8,9 +8,9 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 import com.convay.backend.JSON;
 
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
 
 @Component
 public class SignalingHandler extends TextWebSocketHandler {
@@ -34,39 +34,60 @@ public class SignalingHandler extends TextWebSocketHandler {
         String senderId = session.getId();
 
         switch (type) {
+            case "start" -> {
+                if (rooms.containsKey(roomId)) {
+                    Map<String, Object> errorMsg = Map.of(
+                        "type", "room-already-exists"
+                    );
+                    session.sendMessage(new TextMessage(JSON.stringify(errorMsg)));
+                } else {
+                    rooms.put(roomId, new CopyOnWriteArraySet<>());
+                    rooms.get(roomId).add(session);
+                    // Store peerId mapping
+                    sessionToRoom.put(session, roomId);
+                    System.out.println("Room " + roomId + " created by peer " + senderId);
+                }
+            }
+
             case "join" -> {
-                rooms.putIfAbsent(roomId, new CopyOnWriteArraySet<>());
-                Set<WebSocketSession> roomSessions = rooms.get(roomId);
-                roomSessions.add(session);
-                // Store peerId mapping
-                sessionToRoom.put(session, roomId);
-                
-                // Send all existing peers to the newly joined peer
-                Map<String, Object> existingPeersMsg = Map.of(
-                    "type", "existing-peers",
-                    "peers", roomSessions.stream()
-                            .filter(s -> !s.equals(session))
-                            .map(s -> s.getId())
-                            .toList()
-                );
-                session.sendMessage(new TextMessage(JSON.stringify(existingPeersMsg)));
-                
-                // Notify all existing peers about the new peer joining
-                Map<String, Object> newPeerMsg = Map.of(
-                    "type", "peer-joined",
-                    "peerId", senderId
-                );
-                for (WebSocketSession s : roomSessions) {
-                    if (!s.equals(session)) {
-                        try {
-                            s.sendMessage(new TextMessage(JSON.stringify(newPeerMsg)));
-                        } catch (Exception e) {
-                            System.err.println("Error notifying peer about new join: " + e.getMessage());
+                if (!rooms.containsKey(roomId)) {
+                    Map<String, Object> errorMsg = Map.of(
+                        "type", "room-not-found"
+                    );
+                    session.sendMessage(new TextMessage(JSON.stringify(errorMsg)));
+                } else {
+                    Set<WebSocketSession> roomSessions = rooms.get(roomId);
+                    roomSessions.add(session);
+                    // Store peerId mapping
+                    sessionToRoom.put(session, roomId);
+                    
+                    // Send all existing peers to the newly joined peer
+                    Map<String, Object> existingPeersMsg = Map.of(
+                        "type", "existing-peers",
+                        "peers", roomSessions.stream()
+                                .filter(s -> !s.equals(session))
+                                .map(s -> s.getId())
+                                .toList()
+                    );
+                    session.sendMessage(new TextMessage(JSON.stringify(existingPeersMsg)));
+                    
+                    // Notify all existing peers about the new peer joining
+                    Map<String, Object> newPeerMsg = Map.of(
+                        "type", "peer-joined",
+                        "peerId", senderId
+                    );
+                    for (WebSocketSession s : roomSessions) {
+                        if (!s.equals(session)) {
+                            try {
+                                s.sendMessage(new TextMessage(JSON.stringify(newPeerMsg)));
+                            } catch (Exception e) {
+                                System.err.println("Error notifying peer about new join: " + e.getMessage());
+                            }
                         }
                     }
+                    System.out.println("Peer " + senderId + " joined room " + roomId + 
+                                    " (Total peers in room: " + roomSessions.size() + ")");
                 }
-                System.out.println("Peer " + senderId + " joined room " + roomId + 
-                                 " (Total peers in room: " + roomSessions.size() + ")");
             }
 
             case "offer", "answer", "ice" -> {

@@ -18,6 +18,12 @@ public class WebSocketConfig implements WebSocketConfigurer {
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         registry.addHandler(signalingHandler, "/ws")
-                .setAllowedOrigins(Credentials.MONA_FRONTEND_URL,Credentials.FARIHA_FRONTEND_URL, Credentials.TABA_FRONTEND_URL, Credentials.DEBO_FRONTEND_URL, "http://localhost:5173");
+                .setAllowedOrigins(
+                    Credentials.MONA_FRONTEND_URL, 
+                    Credentials.FARIHA_FRONTEND_URL,
+                    Credentials.DEBO_FRONTEND_URL,
+                    Credentials.TABA_FRONTEND_URL,
+                    "http://localhost:5173"
+                );
     }
 }
