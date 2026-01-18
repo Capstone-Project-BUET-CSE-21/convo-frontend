@@ -2,7 +2,9 @@ import { useRef, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import PropTypes from 'prop-types';
 
-const WS_BASE = import.meta.env.VITE_API_BASE_MONA;
+// const WS_BASE = import.meta.env.VITE_MONA_API_BASE;
+const WS_BASE = import.meta.env.VITE_TABA_API_BASE;
+// const WS_BASE = import.meta.env.VITE_DEBO_API_BASE;
 
 const SingleRoom = ({ localStream }) => {
   const params = useParams();
