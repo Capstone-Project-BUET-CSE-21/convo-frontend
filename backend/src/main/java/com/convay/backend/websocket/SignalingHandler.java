@@ -61,16 +61,6 @@ public class SignalingHandler extends TextWebSocketHandler {
                     // Store peerId mapping
                     sessionToRoom.put(session, roomId);
                     
-                    // Send all existing peers to the newly joined peer
-                    Map<String, Object> existingPeersMsg = Map.of(
-                        "type", "existing-peers",
-                        "peers", roomSessions.stream()
-                                .filter(s -> !s.equals(session))
-                                .map(s -> s.getId())
-                                .toList()
-                    );
-                    session.sendMessage(new TextMessage(JSON.stringify(existingPeersMsg)));
-                    
                     // Notify all existing peers about the new peer joining
                     Map<String, Object> newPeerMsg = Map.of(
                         "type", "peer-joined",

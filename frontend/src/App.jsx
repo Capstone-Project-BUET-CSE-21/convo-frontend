@@ -4,8 +4,6 @@ import './App.css'
 import SingleRoom from './SingleRoom'
 import Homepage from './Homepage'
 
-const API_BASE = import.meta.env.VITE_API_BASE_MONA
-
 const App = () => {
   const [localStream, setLocalStream] = useState(null);
   const [command, setCommand] = useState("");
@@ -14,7 +12,7 @@ const App = () => {
     const fetchLocalMedia = async () => {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       setLocalStream(stream);
-    }
+    };
 
     fetchLocalMedia();
   }, []);

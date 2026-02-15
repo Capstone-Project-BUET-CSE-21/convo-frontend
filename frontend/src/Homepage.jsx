@@ -87,9 +87,9 @@ const Homepage = ({ localStream, command, setCommand }) => {
                     className="local-video"
                 />
                 {!isVideoEnabled && (
-                <div className="video-overlay">
-                    Camera is off
-                </div>
+                    <div className="video-overlay">
+                        Camera is off
+                    </div>
                 )}
 
                 

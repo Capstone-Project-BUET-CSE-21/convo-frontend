@@ -8,6 +8,7 @@ const WS_BASE = import.meta.env.VITE_MONA_API_BASE;
 const SingleRoom = ({ localStream, command }) => {
   const params = useParams();
   const roomId = params.roomId;
+  
   const wsRef = useRef(null);
   const pcRef = useRef(new Map());
 
@@ -20,18 +21,47 @@ const SingleRoom = ({ localStream, command }) => {
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
+
+  const handleChange = (track, isAudio) => {
+    if (isAudio) {
+      setIsAudioEnabled(track.enabled);
+    } else {
+      setIsVideoEnabled(track.enabled);
+    }
+  }
+
   // Initialize audio/video state from localStream
   useEffect(() => {
     if (localStream) {
       const audioTrack = localStream.getAudioTracks()[0];
       const videoTrack = localStream.getVideoTracks()[0];
       
-      if (audioTrack) {
-        setIsAudioEnabled(audioTrack.enabled);
+      if (!audioTrack) return;
+      audioTrack.addEventListener("enabledchange", () => handleChange(audioTrack, true));
+      
+      if (!videoTrack) return;
+      videoTrack.addEventListener("enabledchange", () => handleChange(videoTrack, false));
+
+      // Set local video
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStream;
       }
-      if (videoTrack) {
-        setIsVideoEnabled(videoTrack.enabled);
-      }
+
+      pcRef.current.forEach(pc => {
+        pc.getSenders().forEach(sender => {
+          if (sender.track && sender.track.kind === "audio" && audioTrack) {
+            sender.replaceTrack(audioTrack);
+          }
+          if (sender.track && sender.track.kind === "video" && videoTrack) {
+            sender.replaceTrack(videoTrack);
+          }
+        });
+      });
+
+      return () => {
+        audioTrack.removeEventListener("enabledchange", () => handleChange(audioTrack, true));
+        videoTrack.removeEventListener("enabledchange", () => handleChange(videoTrack, false));
+      };
     }
   }, [localStream]);
 
@@ -200,11 +230,6 @@ const SingleRoom = ({ localStream, command }) => {
   };
 
   useEffect(() => {
-    if (!localStream) {
-      console.error("No local stream available");
-      return;
-    }
-
     console.log("Setting up WebSocket connection");
     wsRef.current = new WebSocket(`wss://${WS_BASE}/ws`);
 
@@ -231,52 +256,39 @@ const SingleRoom = ({ localStream, command }) => {
           navigate("/");
           break;
 
-        case "existing-peers":
-          console.log("Existing peers:", data.peers);
-          // Create offers to all existing peers
-          for (const peerId of data.peers) {
-            try {
-              const pc = await createPeerConnection(peerId);
-              const offer = await pc.createOffer();
-              await pc.setLocalDescription(offer);
-
-              wsRef.current.send(JSON.stringify({
-                type: "offer",
-                roomId: roomId,
-                to: peerId,
-                payload: offer
-              }));
-              console.log("Sent offer to existing peer:", peerId);
-            } catch (err) {
-              console.error("Error creating offer for", peerId, err);
-            }
-          }
-          break;
-
         case "peer-joined":
           console.log("New peer joined:", data.peerId);
-          // Just update state, they will send us an offer
-          setPeers(prev => {
-            if (!prev.includes(data.peerId)) {
-              return [...prev, data.peerId];
-            }
-            return prev;
-          });
+          try {
+            const pc = await createPeerConnection(data.peerId);
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            wsRef.current.send(JSON.stringify({
+              type: "offer",
+              roomId: roomId,
+              to: data.peerId,
+              payload: offer
+            }));
+            console.log("Sent offer to new peer:", data.peerId);
+          } catch (err) {
+            console.error("Error creating offer for new peer", data.peerId, err);
+          }
           break;
 
         case "offer":
           await handleOffer(data.from, data.payload);
           break;
 
-        case "answer":
+        case "answer": {
           console.log("Received answer from:", data.from);
           const pc = pcRef.current.get(data.from);
           if (pc) {
             await pc.setRemoteDescription(new RTCSessionDescription(data.payload));
           }
           break;
+        }
 
-        case "ice":
+        case "ice": {
           console.log("Received ICE candidate from:", data.from);
           const peerConnection = pcRef.current.get(data.from);
           if (peerConnection) {
@@ -287,6 +299,7 @@ const SingleRoom = ({ localStream, command }) => {
             }
           }
           break;
+        }
 
         case "peer-left":
           console.log("Peer left:", data.peerId);
@@ -303,11 +316,6 @@ const SingleRoom = ({ localStream, command }) => {
       console.log("WebSocket closed");
     };
 
-    // Set local video
-    if (localVideoRef.current) {
-      localVideoRef.current.srcObject = localStream;
-    }
-
     return () => {
       console.log("Cleaning up WebSocket and peer connections");
       if (wsRef.current) {
@@ -316,7 +324,7 @@ const SingleRoom = ({ localStream, command }) => {
       pcRef.current.forEach(pc => pc.close());
       pcRef.current.clear();
     };
-  }, [localStream, command, roomId, navigate]); // Added dependencies
+  }, []); // Added dependencies
 
   // Show max 5 remote participants (when more than 6 total)
   const visiblePeers = peers.length > 5 ? peers.slice(0, 5) : peers;
