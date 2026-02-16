@@ -27,46 +27,75 @@ const SingleRoom = ({ meetingRoomAttributes }) => {
 
   // Initialize audio/video state from localStream
   useEffect(() => {
-    if (localStream) {
-      // Set local video
-      if (localVideoRef.current) {
-        localVideoRef.current.srcObject = localStream;
-      }
-      
-      const audioTrack = localStream.getAudioTracks()[0];
-      const videoTrack = localStream.getVideoTracks()[0];
+    if (!localStream || !localVideoRef.current) return;
 
-      const handleAudioChange = () => {
-        setIsAudioEnabled(audioTrack.enabled);
+    localVideoRef.current.srcObject = localStream;
+
+    const audioTrack = localStream.getAudioTracks()[0] || null;
+    const videoTrack = localStream.getVideoTracks()[0] || null;
+
+    if (audioTrack) {
+      // Initial sync
+      setIsAudioEnabled(audioTrack.enabled);
+
+      audioTrack.onmute = () => {
+        setIsAudioEnabled(false);
       };
 
-      const handleVideoChange = () => {
-        setIsAudioEnabled(videoTrack.enabled);
+      audioTrack.onunmute = () => {
+        setIsAudioEnabled(true);
       };
-      
-      if (!audioTrack) return;
-      audioTrack.addEventListener("enabledchange", handleAudioChange);
-      
-      if (!videoTrack) return;
-      videoTrack.addEventListener("enabledchange", handleVideoChange);
 
-      pcRef.current.forEach(pc => {
-        pc.getSenders().forEach(sender => {
-          if (sender.track && sender.track.kind === "audio" && audioTrack) {
-            sender.replaceTrack(audioTrack);
-          }
-          if (sender.track && sender.track.kind === "video" && videoTrack) {
-            sender.replaceTrack(videoTrack);
-          }
-        });
-      });
-
-      return () => {
-        audioTrack.removeEventListener("enabledchange", handleAudioChange);
-        videoTrack.removeEventListener("enabledchange", handleVideoChange);
+      audioTrack.onended = () => {
+        setIsAudioEnabled(false);
+        console.warn("Audio track ended");
       };
     }
+
+    if (videoTrack) {
+      setIsVideoEnabled(videoTrack.enabled);
+
+      videoTrack.onmute = () => {
+        setIsVideoEnabled(false);
+      };
+
+      videoTrack.onunmute = () => {
+        setIsVideoEnabled(true);
+      };
+
+      videoTrack.onended = () => {
+        setIsVideoEnabled(false);
+        console.warn("Video track ended");
+      };
+    }
+
+    // Replace tracks in RTCPeerConnections
+    pcRef.current.forEach(pc => {
+      pc.getSenders().forEach(sender => {
+        if (sender.track?.kind === "audio" && audioTrack) {
+          sender.replaceTrack(audioTrack);
+        }
+        if (sender.track?.kind === "video" && videoTrack) {
+          sender.replaceTrack(videoTrack);
+        }
+      });
+    });
+
+    return () => {
+      if (audioTrack) {
+        audioTrack.onmute = null;
+        audioTrack.onunmute = null;
+        audioTrack.onended = null;
+      }
+      if (videoTrack) {
+        videoTrack.onmute = null;
+        videoTrack.onunmute = null;
+        videoTrack.onended = null;
+      }
+    };
+
   }, [localStream]);
+
 
   const copyMeetingId = async () => {
     try {

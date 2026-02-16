@@ -56,8 +56,7 @@ const Homepage = ({ homepageAttributes }) => {
     };
 
     useEffect(() => {
-        if (!localStream) return;
-        if (localVideoRef.current) {
+        if (localStream && localVideoRef.current) {
             localVideoRef.current.srcObject = localStream;
         }
     }, [localStream]);
