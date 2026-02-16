@@ -110,6 +110,7 @@
     padding: 8px;
     overflow: hidden;
     background: var(--bg-dark);
+    
 }
 
 /* 1 participant - full screen */
@@ -211,6 +212,7 @@
     object-fit: contain;
     background-color: var(--bg-dark);
     display: block;
+    transform: scaleX(-1);
 }
 
 .local-video-wrapper .video {
