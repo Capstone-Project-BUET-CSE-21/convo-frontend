@@ -1,287 +1,262 @@
-# Convay - CSE 450 Capstone Project
+# Convo Frontend 
+Frontend for the CSE 450 Capstone Project
+Convo,a full-stack web application, built with **React and Vite**.
 
-A full-stack web application built with Spring Boot (Java) and React, featuring real-time WebSocket communication for collaborative features.
+Backend Repository:
+https://github.com/Capstone-Project-BUET-CSE-21/convo-backend
 
-## Table of Contents
+---
 
-- [Project Overview](#project-overview)
-- [Project Structure](#project-structure)
-- [Notable & Important Components](#notable--important-components)
-- [Prerequisites](#prerequisites)
-- [How to Run the Project Locally](#how-to-run-the-project-locally)
-- [Architecture](#architecture)
-- [Technologies Used](#technologies-used)
+# Table of Contents
 
-## Project Overview
+* Project Overview
+* Project Structure
+* Notable & Important Components
+* Prerequisites
+* How to Run the Frontend Locally
+* Architecture
+* Technologies Used
+* Troubleshooting
 
-Convay is a capstone project that demonstrates a modern full-stack web application with:
-- Real-time WebSocket communication for instant data updates
-- Spring Boot backend with REST APIs
-- React frontend with routing and component-based architecture
-- Security configuration with Spring Security
-- JPA/Hibernate for data persistence
+---
 
-## Project Structure
+# Project Overview
+
+The Convay frontend provides the **user interface and client-side functionality** for the application.
+
+Features include:
+
+* React component-based architecture
+* Client-side routing
+* Real-time communication with backend via WebSockets
+* Interactive collaborative room interface
+
+The frontend communicates with the backend using:
+
+* HTTP REST API requests
+* WebSocket connections
+
+---
+
+# Project Structure
 
 ```
-CSE450-Capstone-project-Convay/
-├── README.md                          # Project documentation
-├── backend/                           # Spring Boot Java Backend
-│   ├── mvnw                          # Maven wrapper script (Unix)
-│   ├── mvnw.cmd                      # Maven wrapper script (Windows)
-│   ├── pom.xml                       # Maven project configuration
-│   ├── src/
-│   │   ├── main/
-│   │   │   ├── java/
-│   │   │   │   └── com/convay/backend/
-│   │   │   │       ├── BackendApplication.java      # Spring Boot entry point
-│   │   │   │       ├── Credentials.java             # Credentials handling
-│   │   │   │       ├── JSON.java                    # JSON utility class
-│   │   │   │       ├── config/
-│   │   │   │       │   └── WebAndSecurityConfig.java # Security & Web configuration
-│   │   │   │       ├── controller/
-│   │   │   │       │   └── Controller.java          # REST API endpoints
-│   │   │   │       └── websocket/
-│   │   │   │           ├── SignalingHandler.java    # WebSocket message handler
-│   │   │   │           └── WebSocketConfig.java     # WebSocket configuration
-│   │   │   └── resources/
-│   │   │       └── application.properties           # Application configuration
-│   │   └── test/
-│   │       └── java/
-│   │           └── com/convay/backend/
-│   │               └── BackendApplicationTests.java # Unit tests
-│   └── target/                        # Compiled output and dependencies
-│
-└── frontend/                          # React Frontend
-    ├── package.json                   # NPM dependencies and scripts
-    ├── vite.config.js                # Vite bundler configuration
-    ├── eslint.config.js              # ESLint code quality configuration
-    ├── index.html                    # HTML entry point
-    ├── src/
-    │   ├── main.jsx                  # React app entry point
-    │   ├── App.jsx                   # Main App component
-    │   ├── App.css                   # App styling
-    │   ├── index.css                 # Global styles
-    │   ├── Homepage.jsx              # Homepage component
-    │   ├── SingleRoom.jsx            # Room/Page component
-    │   └── ...                       # Other React components
-    └── public/                       # Static assets
+frontend/
+├── package.json
+├── vite.config.js
+├── eslint.config.js
+├── index.html
+├── public/
+│   └── assets
+└── src/
+    ├── main.jsx
+    ├── App.jsx
+    ├── App.css
+    ├── index.css
+    ├── Homepage.jsx
+    ├── SingleRoom.jsx
+    └── other components
+.gitignore
+README.md
 ```
 
-## Notable & Important Components
+---
 
-### Backend Components
+# Notable & Important Components
 
-#### 1. **BackendApplication.java**
-   - Spring Boot application entry point
-   - Excludes default DataSource and Hibernate auto-configuration for custom setup
-   - Located: `backend/src/main/java/com/convay/backend/`
+## main.jsx
 
-#### 2. **WebAndSecurityConfig.java**
-   - Configures Spring Security for authentication and authorization
-   - Sets up web configuration and CORS policies
-   - Located: `backend/src/main/java/com/convay/backend/config/`
+Entry point of the React application.
 
-#### 3. **Controller.java**
-   - REST API controller handling HTTP requests
-   - Provides `/process` endpoint for GET and POST requests
-   - Includes data processing logic
-   - Located: `backend/src/main/java/com/convay/backend/controller/`
+Responsibilities:
 
-#### 4. **WebSocket Components**
-   - **WebSocketConfig.java**: Configures WebSocket endpoints and allowed origins
-   - **SignalingHandler.java**: Handles real-time WebSocket messages for live communication
-   - Located: `backend/src/main/java/com/convay/backend/websocket/`
+* Mounts the React app to the DOM
+* Renders the root component
 
-#### 5. **JSON.java**
-   - Utility class for JSON parsing and stringification
-   - Provides helper methods for data serialization
+---
 
-#### 6. **Credentials.java**
-   - Manages authentication credentials
-   - Handles secure credential storage and validation
+## App.jsx
 
-### Frontend Components
+Root React component.
 
-#### 1. **App.jsx**
-   - Root component of the React application
-   - Handles main layout and routing
-   - Located: `frontend/src/`
+Responsibilities:
 
-#### 2. **Homepage.jsx**
-   - Landing/home page component
-   - Initial user interface
-   - Located: `frontend/src/`
+* Main layout structure
+* Application routing
+* Parent component for other UI components
 
-#### 3. **SingleRoom.jsx**
-   - Room/collaborative page component
-   - Handles WebSocket connections for real-time updates
-   - Located: `frontend/src/`
+---
 
-#### 4. **main.jsx**
-   - React DOM render entry point
-   - Mounts the App component to the DOM
+## Homepage.jsx
 
-## Prerequisites
+Landing page component.
 
-Before running the project locally, ensure you have the following installed:
+Responsibilities:
 
-### Backend Requirements
-- **Java 21 or higher** - Download from [Oracle JDK](https://www.oracle.com/java/technologies/downloads/) or use OpenJDK
-- **Maven 3.6+** - Download from [Apache Maven](https://maven.apache.org/download.cgi)
-  - Or use the included Maven Wrapper (mvnw/mvnw.cmd)
+* Initial user interface
+* Entry point to create or join rooms
 
-### Frontend Requirements
-- **Node.js 16+** - Download from [Node.js Official Site](https://nodejs.org/)
-- **npm 8+** - Comes with Node.js
+---
+
+## SingleRoom.jsx
+
+Core collaborative page.
+
+Responsibilities:
+
+* Handles WebSocket connections
+* Manages real-time room communication
+* Displays collaborative interface
+
+---
+
+# Prerequisites
+
+Ensure the following tools are installed.
+
+### Node.js
+
+Version **16 or higher**
+
+Check installation:
+
+```
+node -v
+```
+
+---
+
+### npm
+
+Version **8+**
+
+Check installation:
+
+```
+npm -v
+```
+
+---
 
 ### Optional
-- **Git** - For version control (download from [Git Official Site](https://git-scm.com/))
-- **VS Code** - Recommended IDE (download from [VS Code](https://code.visualstudio.com/))
 
-## How to Run the Project Locally
+* Git
+* VS Code
 
-### Step 1: Clone the Repository
+---
 
-```bash
-git clone <repository-url>
-cd CSE450-Capstone-project-Convay
+# How to Run the Frontend Locally
+
+### Step 1 — Clone the repository
+
+```
+git clone https://github.com/Capstone-Project-BUET-CSE-21/convay-frontend
+cd convay-frontend
 ```
 
-### Step 2: Run the Backend
+---
 
-Navigate to the backend directory:
+### Step 2 — Install dependencies
 
-```bash
-cd backend
 ```
-
-#### Option A: Using Maven Wrapper (Recommended)
-
-**On Windows:**
-```bash
-mvnw.cmd spring-boot:run
-```
-
-**On Unix/Linux/Mac:**
-```bash
-./mvnw spring-boot:run
-```
-
-#### Option B: Using Installed Maven
-
-```bash
-mvn spring-boot:run
-```
-
-The backend server will start on `http://localhost:8080` by default.
-
-**Expected Output:**
-```
-Started BackendApplication in X seconds
-```
-
-### Step 3: Run the Frontend
-
-Open a new terminal and navigate to the frontend directory:
-
-```bash
-cd frontend
-```
-
-Install dependencies:
-
-```bash
 npm install
 ```
 
-Start the development server:
+---
 
-```bash
+### Step 3 — Start development server
+
+```
 npm run dev
 ```
 
-The frontend will be available at `http://localhost:5173` (or another port if 5173 is busy).
+---
 
-### Step 4: Access the Application
+### Step 4 — Open the application
 
-Open your web browser and navigate to:
+The development server runs at:
+
 ```
 http://localhost:5173
 ```
 
-You should now see the Convay application homepage.
+---
 
-## Available Scripts
+# Available Scripts
 
-### Frontend Scripts
+| Command         | Description              |
+| --------------- | ------------------------ |
+| npm run dev     | Start development server |
+| npm run build   | Build production bundle  |
+| npm run preview | Preview production build |
+| npm run lint    | Run ESLint               |
 
-- **`npm run dev`** - Start the Vite development server with hot reload
-- **`npm run build`** - Build the project for production (creates `dist/` folder)
-- **`npm run preview`** - Preview the production build locally
-- **`npm run lint`** - Run ESLint to check code quality
+---
 
-### Backend Maven Commands
+# Architecture
 
-- **`./mvnw spring-boot:run`** or **`mvn spring-boot:run`** - Start the Spring Boot application
-- **`./mvnw clean`** or **`mvn clean`** - Remove the target directory
-- **`./mvnw test`** or **`mvn test`** - Run unit tests
-- **`./mvnw package`** or **`mvn package`** - Build the project into a JAR file
-- **`./mvnw clean package`** or **`mvn clean package`** - Clean and build the project
+The frontend interacts with the backend using:
 
-## Architecture
+### REST API
 
-### Technology Stack
+HTTP requests to backend endpoints.
 
-**Backend:**
-- Java 21
-- Spring Boot 4.0.1
-- Spring Security
-- Spring Data JPA
-- WebSocket (Real-time communication)
-- Hibernate ORM
+Example flow:
 
-**Frontend:**
-- React 19.2.0
-- React Router 7.12.0
-- Vite 7.2.4 (Build tool)
-- ESLint (Code quality)
+1. User action
+2. HTTP request sent to backend
+3. Backend returns JSON response
 
-### Communication Flow
+---
 
-1. **REST API**: Frontend makes HTTP requests to backend endpoints (`/process`)
-2. **WebSocket**: Real-time bidirectional communication for collaborative features
-3. **Security**: Spring Security protects backend endpoints
-4. **Data Format**: JSON for all data exchange
+### WebSocket Communication
 
-## Technologies Used
+Real-time updates occur through WebSocket signalling.
 
-| Component | Technology | Version |
-|-----------|-----------|---------|
-| **Backend Language** | Java | 21 |
-| **Backend Framework** | Spring Boot | 4.0.1 |
-| **Frontend Library** | React | 19.2.0 |
-| **Frontend Router** | React Router | 7.12.0 |
-| **Build Tool (Frontend)** | Vite | 7.2.4 |
-| **Package Manager** | npm | 8+ |
-| **Code Linter** | ESLint | 9.39.1 |
-| **ORM** | Hibernate/JPA | Spring included |
-| **Real-time** | WebSocket | Native Java support |
+Flow:
 
-## Troubleshooting
+1. Client opens WebSocket connection
+2. Backend signalling server relays messages
+3. UI updates instantly
 
-### Backend Won't Start
-- Ensure Java 21 is installed: `java -version`
-- Check if port 8080 is available
-- Try cleaning and rebuilding: `mvn clean install`
+---
 
-### Frontend Won't Start
-- Clear `node_modules` and reinstall: `rm -rf node_modules && npm install`
-- Ensure Node.js and npm are installed correctly
-- Check if port 5173 is available
+# Technologies Used
 
-### WebSocket Connection Issues
-- Verify backend is running on `http://localhost:8080`
-- Check browser console for connection errors
-- Ensure WebSocket endpoints are properly configured in both frontend and backend
+| Component        | Technology   | Version |
+| ---------------- | ------------ | ------- |
+| Frontend Library | React        | 19.2.0  |
+| Router           | React Router | 7.12.0  |
+| Build Tool       | Vite         | 7.2.4   |
+| Package Manager  | npm          | 8+      |
+| Code Linter      | ESLint       | 9.39.1  |
 
+---
+
+# Troubleshooting
+
+## Frontend Won't Start
+
+Delete dependencies and reinstall:
+
+```
+rm -rf node_modules
+npm install
+```
+
+---
+
+## Port Already in Use
+
+If port **5173** is busy Vite will automatically assign another port.
+
+Check terminal output for the new URL.
+
+---
+
+## WebSocket Connection Issues
+
+Ensure:
+
+* Backend server is running on `http://localhost:8080`
+* Frontend is connecting to correct WebSocket endpoint

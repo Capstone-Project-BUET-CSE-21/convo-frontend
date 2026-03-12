@@ -3,9 +3,7 @@
 resources/
 
 
-### Frontend ###
-frontend/node_modules/
-# frontend/.env
+
 
 
 ### Backend ###
