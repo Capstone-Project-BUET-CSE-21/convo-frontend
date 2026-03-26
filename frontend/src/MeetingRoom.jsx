@@ -2,11 +2,12 @@ import { useRef, useEffect, useState} from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import PropTypes from 'prop-types';
 import "./MeetingRoom.css";
+import { createProcessedStream } from "./audio/audioWorkletSetup";
 
 const API_BASE = import.meta.env.VITE_MONA_API_BASE;
 
-const SingleRoom = ({ meetingRoomAttributes }) => {
-  const { localStream, command, isAudioEnabledPair, isVideoEnabledPair } = meetingRoomAttributes;
+const MeetingRoom = ({ meetingRoomAttributes }) => {
+  const { command, isAudioEnabledPair, isVideoEnabledPair, toggleAudio, toggleVideo } = meetingRoomAttributes;
   const { isAudioEnabled, setIsAudioEnabled } = isAudioEnabledPair;
   const { isVideoEnabled, setIsVideoEnabled } = isVideoEnabledPair;
 
@@ -19,82 +20,13 @@ const SingleRoom = ({ meetingRoomAttributes }) => {
 
   const localVideoRef = useRef(null);
   const remoteVideosRef = useRef(new Map());
+  const gainNodeRef = useRef(null);
 
   const [peers, setPeers] = useState([]);
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
-  
 
-  // Initialize audio/video state from localStream
-  useEffect(() => {
-    if (!localStream || !localVideoRef.current) return;
-
-    localVideoRef.current.srcObject = localStream;
-
-    const audioTrack = localStream.getAudioTracks()[0] || null;
-    const videoTrack = localStream.getVideoTracks()[0] || null;
-
-    if (audioTrack) {
-      // Initial sync
-      setIsAudioEnabled(audioTrack.enabled);
-
-      audioTrack.onmute = () => {
-        setIsAudioEnabled(false);
-      };
-
-      audioTrack.onunmute = () => {
-        setIsAudioEnabled(true);
-      };
-
-      audioTrack.onended = () => {
-        setIsAudioEnabled(false);
-        console.warn("Audio track ended");
-      };
-    }
-
-    if (videoTrack) {
-      setIsVideoEnabled(videoTrack.enabled);
-
-      videoTrack.onmute = () => {
-        setIsVideoEnabled(false);
-      };
-
-      videoTrack.onunmute = () => {
-        setIsVideoEnabled(true);
-      };
-
-      videoTrack.onended = () => {
-        setIsVideoEnabled(false);
-        console.warn("Video track ended");
-      };
-    }
-
-    // Replace tracks in RTCPeerConnections
-    pcRef.current.forEach(pc => {
-      pc.getSenders().forEach(sender => {
-        if (sender.track?.kind === "audio" && audioTrack) {
-          sender.replaceTrack(audioTrack);
-        }
-        if (sender.track?.kind === "video" && videoTrack) {
-          sender.replaceTrack(videoTrack);
-        }
-      });
-    });
-
-    return () => {
-      if (audioTrack) {
-        audioTrack.onmute = null;
-        audioTrack.onunmute = null;
-        audioTrack.onended = null;
-      }
-      if (videoTrack) {
-        videoTrack.onmute = null;
-        videoTrack.onunmute = null;
-        videoTrack.onended = null;
-      }
-    };
-
-  }, [localStream]);
+  const [userId, setUserId] = useState([]);
 
 
   const copyMeetingId = async () => {
@@ -126,9 +58,7 @@ const SingleRoom = ({ meetingRoomAttributes }) => {
   //     }
   //   }
   // };
-// Replace these two functions in Homepage.jsx
-const toggleAudio = homepageAttributes.toggleAudio;
-const toggleVideo = homepageAttributes.toggleVideo;
+
   const createPeerConnection = async (peerId) => {
     if (pcRef.current.has(peerId)) {
       console.log(`Peer connection already exists for ${peerId}`);
@@ -258,6 +188,27 @@ const toggleVideo = homepageAttributes.toggleVideo;
     console.log("Left room: " + roomId);
   };
 
+
+  const fetchWatermarkConfig = async () => {
+    try {
+      const res = await fetch(
+        `https://${API_BASE}/api/watermark/config?sessionId=${roomId}&userId=${userId}`
+      );
+
+      const data = await res.json();
+      return data;
+    } catch (err) {
+      console.error("Failed to fetch watermark config:", err);
+
+      // fallback (important)
+      return {
+        seed: 42,
+        alpha: 0.005,
+        frameSize: 256
+      };
+    }
+  };
+
   const fetchServerCredentials = async () => {
     console.log("Fetching server credentials from backend");
     try {
@@ -275,6 +226,87 @@ const toggleVideo = homepageAttributes.toggleVideo;
       console.error("Failed to fetch server credentials:", err);
     }
   }
+  
+
+  // Initialize audio/video state from localStream
+  useEffect(() => {
+    const initMedia = async () => {
+      const rawStream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: true 
+      });
+
+      // Fetch watermark config
+      const config = await fetchWatermarkConfig();
+
+      const processedStream = await createProcessedStream(rawStream, config);
+      // const processedStream = rawStream; // TEMP: skip AudioWorklet for now
+
+      // Save gainNode in ref
+      gainNodeRef.current = processedStream._gainNode;
+
+      console.log("Fetched local media stream");
+
+      // TEMPORARY: expose for console testing, remove after testing
+      // window.__processedStream = processedStream;
+      // window.__gainNode = processedStream._gainNode;
+
+      const localStream = processedStream;
+      localVideoRef.current.srcObject = localStream;
+
+      const audioTrack = localStream.getAudioTracks()[0] || null;
+      const videoTrack = localStream.getVideoTracks()[0] || null;
+
+      if (audioTrack) {
+        // Initial sync
+        audioTrack.enabled = isAudioEnabled;
+
+        audioTrack.onmute = () => {
+          setIsAudioEnabled(false);
+        };
+
+        audioTrack.onunmute = () => {
+          setIsAudioEnabled(true);
+        };
+
+        audioTrack.onended = () => {
+          setIsAudioEnabled(false);
+          console.warn("Audio track ended");
+        };
+      }
+
+      if (videoTrack) {
+        videoTrack.enabled = isVideoEnabled;
+
+        videoTrack.onmute = () => {
+          setIsVideoEnabled(false);
+        };
+
+        videoTrack.onunmute = () => {
+          setIsVideoEnabled(true);
+        };
+
+        videoTrack.onended = () => {
+          setIsVideoEnabled(false);
+          console.warn("Video track ended");
+        };
+      }
+
+      // Replace tracks in RTCPeerConnections
+      pcRef.current.forEach(pc => {
+        pc.getSenders().forEach(sender => {
+          if (sender.track?.kind === "audio" && audioTrack) {
+            sender.replaceTrack(audioTrack);
+          }
+          if (sender.track?.kind === "video" && videoTrack) {
+            sender.replaceTrack(videoTrack);
+          }
+        });
+      });
+    }
+
+    initMedia()
+  }, []);
 
   useEffect(() => {
     fetchServerCredentials();
@@ -307,6 +339,11 @@ const toggleVideo = homepageAttributes.toggleVideo;
 
         case "peer-joined":
           await sendOffer(data.peerId);
+          break;
+
+        case "start-success" :
+        case "join-success" :
+          setUserId(data.peerId);
           break;
 
         case "offer":
@@ -441,7 +478,7 @@ const toggleVideo = homepageAttributes.toggleVideo;
       <div className="controls-bar">
         <button 
           className={`btn-control ${!isAudioEnabled ? 'disabled' : ''}`}
-          onClick={toggleAudio}
+          onClick={() => toggleAudio(localVideoRef.current?.srcObject, gainNodeRef)} // Pass gainNodeRef
           title={isAudioEnabled ? "Mute microphone" : "Unmute microphone"}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -455,7 +492,7 @@ const toggleVideo = homepageAttributes.toggleVideo;
 
         <button 
           className={`btn-control ${!isVideoEnabled ? 'disabled' : ''}`}
-          onClick={toggleVideo}
+          onClick={() => toggleVideo(localVideoRef.current?.srcObject)}
           title={isVideoEnabled ? "Turn off camera" : "Turn on camera"}
         >
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -496,9 +533,20 @@ const toggleVideo = homepageAttributes.toggleVideo;
   );
 };
 
-SingleRoom.propTypes = {
-  localStream: PropTypes.object.isRequired,
-  command: PropTypes.string.isRequired
+MeetingRoom.propTypes = {
+  meetingRoomAttributes: PropTypes.shape({
+    command: PropTypes.string.isRequired,
+    isAudioEnabledPair: PropTypes.shape({
+      isAudioEnabled: PropTypes.bool.isRequired,
+      setIsAudioEnabled: PropTypes.func.isRequired
+    }).isRequired,
+    isVideoEnabledPair: PropTypes.shape({
+      isVideoEnabled: PropTypes.bool.isRequired,
+      setIsVideoEnabled: PropTypes.func.isRequired
+    }).isRequired,
+    toggleAudio: PropTypes.func.isRequired,
+    toggleVideo: PropTypes.func.isRequired
+  }).isRequired
 };
 
-export default SingleRoom;
+export default MeetingRoom;

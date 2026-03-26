@@ -27,9 +27,12 @@ function _generatePN(seed, length) {
 }
 
 class AudioProcessor extends AudioWorkletProcessor {
-  constructor() {
+  constructor(options) {
     super();
-    this._bufferSize = 256;
+
+    const config = options.processorOptions || {};
+
+    this._bufferSize = config.frameSize || 256;
     this._capacity = 4096;
 
     // Input ring buffer
@@ -45,32 +48,9 @@ class AudioProcessor extends AudioWorkletProcessor {
     this._outFilled = 0;
 
     // Watermark config
-    this._alpha = 0.005;
-    this._seed = 42;
+    this._alpha = config.alpha || 0.005;
+    this._seed = config.seed || 42;
     this._pn = _generatePN(this._seed, this._bufferSize);
-
-    this.port.onmessage = (e) => {
-      if (e.data.type === 'INIT_CONFIG') {
-        const { seed, alpha, frameSize } = e.data.payload;
-        if (alpha !== undefined)    this._alpha = alpha;
-        if (frameSize !== undefined) {
-          this._bufferSize = frameSize;
-          // Regenerate PN if frameSize changed, since length depends on it
-          this._pn = _generatePN(this._seed, this._bufferSize);
-        }
-        if (seed !== undefined) {
-          this._seed = seed;
-          this._pn = _generatePN(this._seed, this._bufferSize);  // seed & frameSize both applied
-        }
-      }
-
-      // Keep individual setters so runtime changes still work
-      if (e.data.type === 'SET_ALPHA') this._alpha = e.data.payload;
-      if (e.data.type === 'SET_SEED') {
-        this._seed = e.data.payload;
-        this._pn = _generatePN(this._seed, this._bufferSize);
-      }
-    };
   }
 
   _pushIn(samples) {
