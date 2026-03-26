@@ -61,25 +61,28 @@ const Homepage = ({ homepageAttributes }) => {
         }
     }, [localStream]);
 
-    const toggleAudio = () => {
-        if (localStream) {
-            const audioTrack = localStream.getAudioTracks()[0];
-            if (audioTrack) {
-                audioTrack.enabled = !audioTrack.enabled;
-                setIsAudioEnabled(audioTrack.enabled);
-            }
-        }
-    };
+    // const toggleAudio = () => {
+    //     if (localStream) {
+    //         const audioTrack = localStream.getAudioTracks()[0];
+    //         if (audioTrack) {
+    //             audioTrack.enabled = !audioTrack.enabled;
+    //             setIsAudioEnabled(audioTrack.enabled);
+    //         }
+    //     }
+    // };
 
-    const toggleVideo = () => {
-        if (localStream) {
-            const videoTrack = localStream.getVideoTracks()[0];
-            if (videoTrack) {
-                videoTrack.enabled = !videoTrack.enabled;
-                setIsVideoEnabled(videoTrack.enabled);
-            }
-        }
-    };
+    // const toggleVideo = () => {
+    //     if (localStream) {
+    //         const videoTrack = localStream.getVideoTracks()[0];
+    //         if (videoTrack) {
+    //             videoTrack.enabled = !videoTrack.enabled;
+    //             setIsVideoEnabled(videoTrack.enabled);
+    //         }
+    //     }
+    // };
+    // Replace these two functions in Homepage.jsx
+const toggleAudio = homepageAttributes.toggleAudio;
+const toggleVideo = homepageAttributes.toggleVideo;
 
     return (
         <div className="homepage-container">
