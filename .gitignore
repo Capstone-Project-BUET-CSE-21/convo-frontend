@@ -2,7 +2,9 @@
 .vscode/
 resources/
 
-
+#Frontend
+frontend/node_modules/
+frontend/src/package-lock.json
 
 
 
