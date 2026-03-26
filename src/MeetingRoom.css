@@ -1,0 +1,353 @@
+:root {
+    --bg-dark: #121214;
+    --surface-light: #1e1e24;
+    --primary-purple: #805ae6;
+    --primary-purple-hover: #7046dc;
+    --primary-purple-shadow: rgba(128, 90, 230, 0.3);
+    --bg-medium: #EDECEE;
+    --purple-shade-1: #9b7ef5;
+    --purple-shade-2: #b49aff;
+    --purple-shade-3: #6b4fd1;
+    --purple-shade-4: #5a3fb8;
+}
+
+.room-container {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-medium);
+    font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.room-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 32px;
+    background: #F9F9F9;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    z-index: 10;
+    flex-shrink: 0;
+}
+
+.room-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
+.room-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: #0a0a0a;
+    letter-spacing: -0.3px;
+}
+
+.room-id-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.room-id {
+    font-size: 12px;
+    color: var(--primary-purple);
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    background: rgba(128, 90, 230, 0.1);
+    padding: 4px 12px;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+}
+
+.copy-id-btn {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-purple);
+    transition: all 0.2s ease;
+    border-radius: 4px;
+}
+
+.copy-id-btn:hover {
+    background: rgba(128, 90, 230, 0.1);
+    transform: scale(1.1);
+}
+
+.copy-id-btn:active {
+    transform: scale(0.95);
+}
+
+.participants-count {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    background: var(--primary-purple);
+    color: white;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    box-shadow: 0 2px 8px var(--primary-purple-shadow);
+    transition: all 0.2s ease;
+}
+
+.participant-icon {
+    font-size: 14px;
+}
+
+/* Video container - Google Meet style grid */
+.videos-container {
+    flex: 1;
+    display: grid;
+    gap: 8px;
+    padding: 8px;
+    overflow: hidden;
+    background: var(--bg-dark);
+    
+}
+
+/* 1 participant - full screen */
+.videos-container[data-participant-count="1"] {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+}
+
+/* 2 participants - side by side */
+.videos-container[data-participant-count="2"] {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
+}
+
+/* 3-4 participants - 2x2 grid */
+.videos-container[data-participant-count="3"],
+.videos-container[data-participant-count="4"] {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+/* 5-6 participants - 3x2 grid */
+.videos-container[data-participant-count="5"],
+.videos-container[data-participant-count="6"] {
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+/* 7+ participants - 3x2 grid showing max 6 */
+.videos-container[data-participant-count="7"],
+.videos-container[data-participant-count="8"],
+.videos-container[data-participant-count="9"],
+.videos-container[data-participant-count="10"],
+.videos-container[data-participant-count="11"],
+.videos-container[data-participant-count="12"],
+.videos-container[data-participant-count="13"],
+.videos-container[data-participant-count="14"],
+.videos-container[data-participant-count="15"],
+.videos-container[data-participant-count="16"],
+.videos-container[data-participant-count="17"],
+.videos-container[data-participant-count="18"],
+.videos-container[data-participant-count="19"],
+.videos-container[data-participant-count="20"],
+.videos-container[data-participant-count="21"],
+.videos-container[data-participant-count="22"],
+.videos-container[data-participant-count="23"],
+.videos-container[data-participant-count="24"],
+.videos-container[data-participant-count="25"],
+.videos-container[data-participant-count="26"],
+.videos-container[data-participant-count="27"],
+.videos-container[data-participant-count="28"],
+.videos-container[data-participant-count="29"],
+.videos-container[data-participant-count="30"] {
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+}
+
+.video-wrapper {
+    position: relative;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg-dark);
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Different purple shades for camera-off state */
+.video-wrapper:nth-child(1) {
+    background: linear-gradient(135deg, var(--primary-purple) 0%, var(--purple-shade-1) 100%);
+}
+
+.video-wrapper:nth-child(2) {
+    background: linear-gradient(135deg, var(--purple-shade-3) 0%, var(--primary-purple-hover) 100%);
+}
+
+.video-wrapper:nth-child(3) {
+    background: linear-gradient(135deg, var(--purple-shade-2) 0%, var(--purple-shade-1) 100%);
+}
+
+.video-wrapper:nth-child(4) {
+    background: linear-gradient(135deg, var(--primary-purple-hover) 0%, var(--purple-shade-4) 100%);
+}
+
+.video-wrapper:nth-child(5) {
+    background: linear-gradient(135deg, var(--purple-shade-1) 0%, var(--primary-purple) 100%);
+}
+
+.video-wrapper:nth-child(6) {
+    background: linear-gradient(135deg, var(--purple-shade-4) 0%, var(--purple-shade-3) 100%);
+}
+
+.video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background-color: var(--bg-dark);
+    display: block;
+    transform: scaleX(-1);
+}
+
+.local-video-wrapper .video {
+    transform: scaleX(-1);
+}
+
+.video-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #ffffff;
+    font-size: 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 8px 16px;
+    border-radius: 8px;
+    pointer-events: none;
+    text-align: center;
+    font-weight: 500;
+}
+
+.video-label {
+    position: absolute;
+    bottom: 8px;
+    left: 8px;
+    background: rgba(0, 0, 0, 0.7);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+}
+
+.hidden-participants {
+    position: absolute;
+    bottom: 90px;
+    right: 16px;
+    background: rgba(0, 0, 0, 0.85);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    color: white;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 5;
+}
+
+.controls-bar {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px 32px;
+    background: var(--surface-light);
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+    gap: 12px;
+    z-index: 10;
+    flex-shrink: 0;
+}
+
+.btn-control {
+    background: rgba(128, 90, 230, 0.15);
+    border: none;
+    border-radius: 50%;
+    width: 52px;
+    height: 52px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-purple);
+}
+
+.btn-control:hover {
+    background: rgba(128, 90, 230, 0.25);
+    transform: scale(1.08);
+}
+
+.btn-control:active {
+    transform: scale(0.98);
+}
+
+.btn-control.disabled {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
+.btn-control.disabled:hover {
+    background: rgba(239, 68, 68, 0.25);
+}
+
+.btn-leave {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+    border: none;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-leave:hover {
+    background: #ef4444;
+    color: white;
+    transform: scale(1.08);
+}
+
+.btn-leave:active {
+    transform: scale(0.98);
+}
+
+/* Responsive adjustments */
+@media (max-width: 1200px) {
+    .videos-container[data-participant-count="5"],
+    .videos-container[data-participant-count="6"] {
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .videos-container[data-participant-count="3"],
+    .videos-container[data-participant-count="4"],
+    .videos-container[data-participant-count="5"],
+    .videos-container[data-participant-count="6"] {
+        grid-template-columns: 1fr;
+        grid-template-rows: repeat(auto-fit, 1fr);
+    }
+}

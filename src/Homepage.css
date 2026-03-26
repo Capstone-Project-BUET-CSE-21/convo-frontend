@@ -1,0 +1,285 @@
+:root {
+    --bg-dark: #121214;        /* Deep background */
+    --surface-light: #1e1e24;  /* The card color */
+    --primary-purple: #805ae6;
+    --primary-purple-hover: #7046dc;
+    --primary-purple-shadow: rgba(128, 90, 230, 0.3);
+     --bg-medium: #EDECEE;
+}
+
+
+.homepage-container {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 100px;
+    background: var(--bg-medium);
+    font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    gap: 8vw;
+}
+
+.video-container {
+    overflow: hidden;
+    position: relative;
+    background: var(--bg-dark);
+    flex-shrink: 0;
+}
+
+.local-video {
+    width: clamp(480px, 40vw, 1080px);
+    height: auto;
+    transform: scaleX(-1);
+    display: block;
+}
+
+.media-controls {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 15px;
+}
+
+.btn-control {
+    background: rgba(255, 255, 255, 0.1);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 50%; /* Makes it perfectly round */
+    width: 3.8vw; 
+    height: 3.8vw; 
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #ffffff;
+    transition: all 0.2s ease;
+}
+
+.btn-control:hover {
+   background: rgba(128, 90, 230, 0.25);  /* soft translucent purple */
+   border-color: rgba(128, 90, 230, 0.4); /* slightly stronger border */
+}
+
+.btn-control.disabled {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #ef4444;
+}
+
+.btn-control.disabled:hover {
+    background: rgba(239, 68, 68, 0.3);
+}
+
+.video-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #ffffff;
+    font-size: 1.7rem;
+    background: rgba(0, 0, 0, 0.6); /* semi-transparent black box */
+    padding: 8px 16px;
+    border-radius: 8px;
+    pointer-events: none; /* so it doesn't block clicks on controls */
+    text-align: center;
+}
+
+.card {
+    /* background: #eef0f3; */
+    background: #F9F9F9;
+    padding: 40px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center; /* Centers content vertically */
+    gap: 16px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.1);
+    min-width: 320px;
+}
+
+.welcome-text {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #0a0a0a;
+    text-align: center;
+    margin-bottom: 10px;
+}
+
+.welcome-line {
+    font-size: 1.8rem;
+    color: #000000;
+    font-weight: 500;
+}
+
+.app-name {
+    font-size: 2rem;
+    color: var(--primary-purple-hover);
+    font-weight: 700;
+    margin-top: -4px;
+    margin-bottom: 10px;
+}
+
+.card-logo {
+    display: block;
+    max-width: 150px;
+    width: 80%;
+    margin: 0px auto 45px auto;
+}
+
+.btn-back {
+    background: transparent;
+    border: none;
+    color: #666;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    padding: 8px 8px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    margin-bottom: auto;
+    align-self: flex-start;
+    font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.btn-back:hover {
+    background: rgba(128, 90, 230, 0.1);
+    color: var(--primary-purple);
+}
+
+.btn {
+    padding: 14px 20px;
+    font-size: 15px;
+    border: none;
+    border-radius: 0.5vw;
+    cursor: pointer;
+    font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    transition: all 0.2s ease;
+}
+
+.btn-primary {
+    background-color: var(--primary-purple);
+    font-weight: 600;
+    color: #ffffff;
+    display: flex;
+    justify-content: center;  
+    align-items: center;  
+}
+
+.btn-primary:hover {
+    background-color: var(--primary-purple-hover);
+    box-shadow: 0 6px 20px var(--primary-purple-shadow);
+}
+
+.btn-primary:active {
+    transform: translateY(0);
+}
+
+.btn-copy {
+    background: #f5f5f5;
+    color: #0a0a0a;
+    border: 1px solid #e5e5e5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.btn-copy:hover {
+    background: var(--primary-purple);
+    color: #ffffff;
+    border-color: var(--primary-purple);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px var(--primary-purple-shadow);
+}
+
+.btn-copy:active {
+    transform: translateY(0);
+}
+
+.meeting-input {
+    padding: 14px 14px;
+    font-size: 15px;
+    border: 1px solid #e5e5e5;
+    border-radius: 0.5vw;
+    outline: none;
+    transition: all 0.2s ease;
+    font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: #0a0a0a;
+    background: #fafafa;
+    min-width: 300px;
+}
+
+.meeting-input:focus {
+    border-color: var(--primary-purple);
+    background: #ffffff;
+    box-shadow: 0 0 0 3px rgba(128, 90, 230, 0.1);
+}
+
+.meeting-input::placeholder {
+    color: #999999;
+}
+
+.meeting-id-display {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 16px 16px;
+    background: linear-gradient(135deg, #f8f9ff 0%, #f0f1ff 100%);
+    border: 1px solid #e0e2ff;
+    border-radius: 0.5vw;
+}
+
+.meeting-id-label {
+    font-size: 12px;
+    color: var(--primary-purple);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+}
+
+.meeting-id-value {
+    font-size: 18px;
+    color: #0a0a0a;
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 1px;
+}
+
+/* Responsive */
+@media (max-width: 1200px) {
+    .homepage-container {
+        flex-direction: column;
+        gap: 40px;
+        padding: 40px;
+    }
+
+    .local-video {
+        width: 90vw;
+    }
+
+    .btn-control {
+        width: 56px;
+        height: 56px;
+    }
+}
+
+@media (max-width: 768px) {
+    .card {
+        padding: 24px;
+        min-width: auto;
+        width: 100%;
+    }
+
+    .btn {
+        width: 100%;
+    }
+
+    .meeting-id-display {
+        width: 100%;
+    }
+}
