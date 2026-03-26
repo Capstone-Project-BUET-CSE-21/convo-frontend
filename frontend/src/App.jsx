@@ -4,6 +4,7 @@ import './App.css'
 import MeetingRoom from './MeetingRoom'
 import Homepage from './Homepage'
 import { createProcessedStream } from './audio/audioWorkletSetup'
+import WatermarkTestPage from './WatermarkTestPage'
 
 const App = () => {
   const [localStream, setLocalStream] = useState(null);
@@ -77,6 +78,7 @@ useEffect(() => {
       <Routes>
         <Route path="" element={<Homepage homepageAttributes={homepageAttributes} />} />
         <Route path="room/:roomId" element={<MeetingRoom meetingRoomAttributes={meetingRoomAttributes} />} />
+        <Route path="watermark-test" element={<WatermarkTestPage />} />
       </Routes>
     </>
   )

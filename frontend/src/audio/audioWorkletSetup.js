@@ -40,5 +40,5 @@ export async function createProcessedStream(rawStream) {
   processedStream._audioContext = audioContext;
   processedStream._gainNode = gainNode;
 
-  return processedStream;
+  return { stream: processedStream, audioContext, workletNode };
 }

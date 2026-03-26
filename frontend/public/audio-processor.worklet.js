@@ -1,3 +1,31 @@
+function _hashString(str) {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (((hash << 5) + hash) + str.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+}
+
+function _createMulberry32(seed) {
+  let s = seed >>> 0;
+  return function () {
+    s += 0x6D2B79F5;
+    let t = Math.imul(s ^ (s >>> 15), 1 | s);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 0x100000000;
+  };
+}
+
+function _generatePN(seed, length) {
+  const numericSeed = typeof seed === 'string' ? _hashString(seed) : (seed >>> 0);
+  const rand = _createMulberry32(numericSeed);
+  const pn = new Float32Array(length);
+  for (let i = 0; i < length; i++) {
+    pn[i] = rand() * 2.0 - 1.0;
+  }
+  return pn;
+}
+
 class AudioProcessor extends AudioWorkletProcessor {
   constructor() {
     super();
@@ -15,6 +43,34 @@ class AudioProcessor extends AudioWorkletProcessor {
     this._outWrite = 0;
     this._outRead = 0;
     this._outFilled = 0;
+
+    // Watermark config
+    this._alpha = 0.005;
+    this._seed = 42;
+    this._pn = _generatePN(this._seed, this._bufferSize);
+
+    this.port.onmessage = (e) => {
+      if (e.data.type === 'INIT_CONFIG') {
+        const { seed, alpha, frameSize } = e.data.payload;
+        if (alpha !== undefined)    this._alpha = alpha;
+        if (frameSize !== undefined) {
+          this._bufferSize = frameSize;
+          // Regenerate PN if frameSize changed, since length depends on it
+          this._pn = _generatePN(this._seed, this._bufferSize);
+        }
+        if (seed !== undefined) {
+          this._seed = seed;
+          this._pn = _generatePN(this._seed, this._bufferSize);  // seed & frameSize both applied
+        }
+      }
+
+      // Keep individual setters so runtime changes still work
+      if (e.data.type === 'SET_ALPHA') this._alpha = e.data.payload;
+      if (e.data.type === 'SET_SEED') {
+        this._seed = e.data.payload;
+        this._pn = _generatePN(this._seed, this._bufferSize);
+      }
+    };
   }
 
   _pushIn(samples) {
@@ -92,8 +148,16 @@ class AudioProcessor extends AudioWorkletProcessor {
   }
 
   _processChunk(samples) {
-    // Pass-through — replace with real processing later
-    return samples;
+    const out = new Float32Array(samples.length);
+    const alpha = this._alpha;
+    const pn = this._pn;
+    for (let n = 0; n < samples.length; n++) {
+      let s = samples[n] + alpha * pn[n];
+      if (s >  1.0) s =  1.0;
+      if (s < -1.0) s = -1.0;
+      out[n] = s;
+    }
+    return out;
   }
 }
 
