@@ -4,10 +4,8 @@ import PropTypes from "prop-types";
 import "./Homepage.css"; // Import your CSS file
 
 const Homepage = ({ homepageAttributes }) => {
-    const { localStream, commandPair, isAudioEnabledPair, isVideoEnabledPair } = homepageAttributes;
+    const { commandPair, isAudioEnabled, isVideoEnabled, toggleAudio, toggleVideo } = homepageAttributes;
     const { command, setCommand } = commandPair;
-    const { isAudioEnabled, setIsAudioEnabled } = isAudioEnabledPair;
-    const { isVideoEnabled, setIsVideoEnabled } = isVideoEnabledPair;
 
     const [isEnteringMeetingId, setIsEnteringMeetingId] = useState(false);
     const [meetingId, setMeetingId] = useState("");
@@ -56,10 +54,16 @@ const Homepage = ({ homepageAttributes }) => {
     };
 
     useEffect(() => {
-        if (localStream && localVideoRef.current) {
-            localVideoRef.current.srcObject = localStream;
+        const fetchLocalMedia = async () => {
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+            }
         }
-    }, [localStream]);
+        fetchLocalMedia();
+    }, []);
 
     // const toggleAudio = () => {
     //     if (localStream) {
@@ -80,9 +84,6 @@ const Homepage = ({ homepageAttributes }) => {
     //         }
     //     }
     // };
-    // Replace these two functions in Homepage.jsx
-const toggleAudio = homepageAttributes.toggleAudio;
-const toggleVideo = homepageAttributes.toggleVideo;
 
     return (
         <div className="homepage-container">
@@ -104,7 +105,7 @@ const toggleVideo = homepageAttributes.toggleVideo;
                 <div className="media-controls">
                     <button 
                         className={`btn-control ${!isAudioEnabled ? 'disabled' : ''}`}
-                        onClick={toggleAudio}
+                        onClick={() => toggleAudio(localVideoRef.current?.srcObject)} // Pass gainNodeRef
                         title={isAudioEnabled ? "Mute microphone" : "Unmute microphone"}
                     >
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -117,7 +118,7 @@ const toggleVideo = homepageAttributes.toggleVideo;
                     </button>
                     <button 
                         className={`btn-control ${!isVideoEnabled ? 'disabled' : ''}`}
-                        onClick={toggleVideo}
+                        onClick={() => toggleVideo(localVideoRef.current?.srcObject)}
                         title={isVideoEnabled ? "Turn off camera" : "Turn on camera"}
                     >
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -223,9 +224,16 @@ const toggleVideo = homepageAttributes.toggleVideo;
 }
 
 Homepage.propTypes = {
-    localStream: PropTypes.object.isRequired,
-    command: PropTypes.string.isRequired,
-    setCommand: PropTypes.func.isRequired
+    homepageAttributes: PropTypes.shape({
+        commandPair: PropTypes.shape({
+            command: PropTypes.string.isRequired,
+            setCommand: PropTypes.func.isRequired
+        }).isRequired,
+        isAudioEnabled: PropTypes.bool.isRequired,
+        isVideoEnabled: PropTypes.bool.isRequired,
+        toggleAudio: PropTypes.func.isRequired,
+        toggleVideo: PropTypes.func.isRequired
+    }).isRequired
 };
 
 export default Homepage;
