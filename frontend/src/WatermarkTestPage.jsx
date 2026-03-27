@@ -22,8 +22,6 @@ function hashString(str) {
 }
 
 function generatePN(seed, length) {
-  // Matches worklet's _generatePN exactly:
-  // string seeds are hashed via djb2, numbers used directly as uint32
   const numericSeed = typeof seed === "string" ? hashString(seed) : (seed >>> 0);
   const rand = mulberry32(numericSeed);
   const pn = new Float32Array(length);
@@ -71,19 +69,14 @@ function encodeWAV(samples, sampleRate) {
   return new Blob([buffer], { type: "audio/wav" });
 }
 
-// ─── Default hardcoded values (Tests 1–3) ────────────────────────────────────
 const SEED = 42;
 const ALPHA = 0.005;
 const FRAME = 256;
 
-// ─── Mock backend response ────────────────────────────────────────────────────
-// This simulates what GET /api/watermark/config?sessionId=XYZ&userId=123 returns.
-// Replace with a real fetch() call once your teammate's backend is ready.
-// Supports both string seeds (like "A7F3K9") and numeric seeds (like 12345).
 const MOCK_BACKEND_RESPONSE = {
-  seed: "A7F3K9",   // string seed — hashed to uint32 by worklet
-  alpha: 0.02,       // stronger than default for better codec survival
-  frameSize: 256,    // must match worklet's _bufferSize
+  seed: "A7F3K9",
+  alpha: 0.02,
+  frameSize: 256,
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -91,27 +84,23 @@ const MOCK_BACKEND_RESPONSE = {
 export default function WatermarkTestPage() {
   const navigate = useNavigate();
 
-  // Test 1
   const [algoResult, setAlgoResult] = useState(null);
 
-  // Test 2
   const [recStatus, setRecStatus] = useState("idle");
+  const [recError, setRecError] = useState(null);
   const [countdown, setCountdown] = useState(5);
   const [wmUrl, setWmUrl] = useState(null);
   const [origUrl, setOrigUrl] = useState(null);
   const timerRef = useRef(null);
-  const scriptNodeRef = useRef(null);
   const samplesRef = useRef([]);
 
-  // Test 3
   const [detection, setDetection] = useState(null);
   const fileRef = useRef(null);
 
-  // Test 4
   const [configResult, setConfigResult] = useState(null);
   const [configRunning, setConfigRunning] = useState(false);
 
-  // ─── TEST 1: Pure JS algorithm check ──────────────────────────────────────
+  // ─── TEST 1 ───────────────────────────────────────────────────────────────
   function runAlgoTest() {
     const pn = generatePN(SEED, FRAME);
     const pnPower = pn.reduce((s, v) => s + v * v, 0) / pn.length;
@@ -133,56 +122,102 @@ export default function WatermarkTestPage() {
     });
   }
 
-  // ─── TEST 2: Record from worklet ──────────────────────────────────────────
+  // ─── TEST 2 ───────────────────────────────────────────────────────────────
   async function startRecording() {
+    // Reset state immediately so UI updates before any async work
     setRecStatus("recording");
+    setRecError(null);
     setWmUrl(null);
     setOrigUrl(null);
+    setCountdown(5);
     samplesRef.current = [];
 
-    const micStream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
-      video: false,
-    });
+    let micStream = null;
+    let audioContext = null;
+    let workletNode = null;
 
-    const { createProcessedStream } = await import("./audio/audioWorkletSetup.js");
-    const { stream: processedStream, audioContext, workletNode } =
-      await createProcessedStream(micStream);
+    try {
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+        video: false,
+      });
 
+      const { default: createProcessedStream } =
+        await import("./audio/audioWorkletSetup.js");
+
+      const result = await Promise.race([
+        createProcessedStream(micStream),
+        new Promise((_, reject) =>
+          setTimeout(
+            () => reject(new Error("createProcessedStream timed out — check DevTools console")),
+            8000
+          )
+        ),
+      ]);
+
+      audioContext = result.audioContext;
+      workletNode = result.workletNode;
+
+      if (!workletNode) {
+        throw new Error("workletNode missing from createProcessedStream return value — add it to the return object in audioWorkletSetup.js");
+      }
+    } catch (err) {
+      console.error("[Test 2]", err);
+      setRecError(err.message);
+      setRecStatus("idle");
+      micStream?.getTracks().forEach((t) => t.stop());
+      return;
+    }
+
+    // ── Capture lossless WAV from worklet output ──────────────────────────
     const scriptNode = audioContext.createScriptProcessor(4096, 1, 1);
-    scriptNodeRef.current = scriptNode;
 
     scriptNode.onaudioprocess = (e) => {
       samplesRef.current.push(new Float32Array(e.inputBuffer.getChannelData(0)));
     };
 
+    // Connect to silent destination — NOT audioContext.destination (causes echo)
     const silentDest = audioContext.createMediaStreamDestination();
     workletNode.connect(scriptNode);
     scriptNode.connect(silentDest);
 
+    // ── Record original mic for comparison ────────────────────────────────
     const origRecorder = new MediaRecorder(micStream);
     const origChunks = [];
-    origRecorder.ondataavailable = (e) => { if (e.data.size > 0) origChunks.push(e.data); };
+    origRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) origChunks.push(e.data);
+    };
     origRecorder.onstop = () =>
-      setOrigUrl(URL.createObjectURL(new Blob(origChunks, { type: "audio/webm" })));
+      setOrigUrl(
+        URL.createObjectURL(new Blob(origChunks, { type: "audio/webm" }))
+      );
     origRecorder.start(100);
 
+    // ── Countdown ─────────────────────────────────────────────────────────
     let remaining = 5;
-    setCountdown(remaining);
 
     timerRef.current = setInterval(() => {
       remaining -= 1;
       setCountdown(remaining);
+
       if (remaining <= 0) {
         clearInterval(timerRef.current);
         origRecorder.stop();
         scriptNode.disconnect();
 
+        // Encode captured PCM as lossless WAV
         const all = samplesRef.current;
         const total = all.reduce((s, c) => s + c.length, 0);
         const pcm = new Float32Array(total);
-        let off = 0;
-        for (const chunk of all) { pcm.set(chunk, off); off += chunk.length; }
+        let offset = 0;
+        for (const chunk of all) {
+          pcm.set(chunk, offset);
+          offset += chunk.length;
+        }
 
         const wav = encodeWAV(pcm, audioContext.sampleRate);
         setWmUrl(URL.createObjectURL(wav));
@@ -194,7 +229,7 @@ export default function WatermarkTestPage() {
     }, 1000);
   }
 
-  // ─── TEST 3: Detect watermark in uploaded file ────────────────────────────
+  // ─── TEST 3 ───────────────────────────────────────────────────────────────
   async function analyzeFile(file) {
     setDetection({ status: "analyzing" });
 
@@ -236,25 +271,22 @@ export default function WatermarkTestPage() {
     });
   }
 
-  // ─── TEST 4: Dynamic config (mocked backend) ──────────────────────────────
+  // ─── TEST 4 ───────────────────────────────────────────────────────────────
   async function runConfigTest() {
     setConfigRunning(true);
     setConfigResult(null);
 
     try {
-      // ── Swap this block for a real fetch() once backend is ready ──────────
-      //
-      // REAL (uncomment when teammate's backend is ready):
+      // REAL — uncomment when backend is ready:
       // const res = await fetch(
       //   `/api/watermark/config?sessionId=test-session&userId=test-user`
       // );
       // if (!res.ok) throw new Error(`Backend returned ${res.status}`);
       // const config = await res.json();
-      //
-      // MOCK (used now):
-      await new Promise((r) => setTimeout(r, 400)); // simulate network delay
+
+      // MOCK — remove once backend is ready:
+      await new Promise((r) => setTimeout(r, 400));
       const config = { ...MOCK_BACKEND_RESPONSE };
-      // ─────────────────────────────────────────────────────────────────────
 
       const { seed, alpha, frameSize } = config;
 
@@ -262,17 +294,13 @@ export default function WatermarkTestPage() {
         throw new Error(`Missing fields. Got: ${JSON.stringify(config)}`);
       }
 
-      // Generate PN with fetched seed — identical to worklet's _generatePN
       const pn = generatePN(seed, frameSize);
       const pnPower = pn.reduce((s, v) => s + v * v, 0) / pn.length;
       const threshold = alpha * frameSize * pnPower * 0.5;
 
-      // Embed into silence and detect with fetched config
       const watermarked = embedSilence(pn, alpha, frameSize);
       const wmCorr = correlate(watermarked, pn);
       const passed = wmCorr > threshold;
-
-      // Warn if seed matches hardcoded default (backend may not be dynamic yet)
       const seedIsDynamic = String(seed) !== String(SEED);
 
       setConfigResult({
@@ -321,7 +349,6 @@ export default function WatermarkTestPage() {
           No microphone needed. Verifies the core math is correct.
         </p>
         <button style={btnStyle} onClick={runAlgoTest}>▶ Run</button>
-
         {algoResult && (
           <div style={resultBox(algoResult.passed)}>
             <div>{algoResult.passed ? "✅ PASSED" : "❌ FAILED"}</div>
@@ -337,12 +364,21 @@ export default function WatermarkTestPage() {
       <section style={sectionStyle}>
         <h2 style={headingStyle}>Test 2 — Live Mic Recording</h2>
         <p style={descStyle}>
-          Records 5 seconds through the watermark pipeline. Captures lossless WAV
-          directly from AudioWorklet output. Speak while recording.
+          Records 5 seconds through the watermark pipeline. Captures lossless
+          WAV directly from AudioWorklet output. Speak while recording.
         </p>
 
+        {recError && (
+          <div style={{ ...resultBox(false), marginBottom: 12 }}>
+            <div style={{ fontWeight: "bold", marginBottom: 4 }}>❌ Error</div>
+            <div style={{ color: "#f44336" }}>{recError}</div>
+          </div>
+        )}
+
         {recStatus === "idle" && (
-          <button style={btnStyle} onClick={startRecording}>🎤 Record 5 Seconds</button>
+          <button style={btnStyle} onClick={startRecording}>
+            🎤 Record 5 Seconds
+          </button>
         )}
 
         {recStatus === "recording" && (
@@ -353,19 +389,49 @@ export default function WatermarkTestPage() {
 
         {recStatus === "done" && (
           <>
-            <button style={{ ...btnStyle, background: "#555", marginTop: 8 }} onClick={startRecording}>
+            <button
+              style={{ ...btnStyle, background: "#555", marginTop: 8 }}
+              onClick={startRecording}
+            >
               ↺ Record Again
             </button>
-            <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div
+              style={{
+                marginTop: 16,
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 12,
+              }}
+            >
               <div>
-                <div style={{ fontSize: 12, marginBottom: 4, color: "#aaa" }}>🎙 Original</div>
-                {origUrl && <audio controls src={origUrl} style={{ width: "100%" }} />}
-                {origUrl && <a href={origUrl} download="original.webm" style={linkStyle}>⬇ original.webm</a>}
+                <div style={{ fontSize: 12, marginBottom: 4, color: "#aaa" }}>
+                  🎙 Original
+                </div>
+                {origUrl && (
+                  <audio controls src={origUrl} style={{ width: "100%" }} />
+                )}
+                {origUrl && (
+                  <a href={origUrl} download="original.webm" style={linkStyle}>
+                    ⬇ original.webm
+                  </a>
+                )}
               </div>
               <div>
-                <div style={{ fontSize: 12, marginBottom: 4, color: "#aaa" }}>💧 Watermarked (WAV)</div>
-                {wmUrl && <audio controls src={wmUrl} style={{ width: "100%" }} />}
-                {wmUrl && <a href={wmUrl} download="watermarked.wav" style={linkStyle}>⬇ watermarked.wav</a>}
+                <div style={{ fontSize: 12, marginBottom: 4, color: "#aaa" }}>
+                  💧 Watermarked (WAV)
+                </div>
+                {wmUrl && (
+                  <audio controls src={wmUrl} style={{ width: "100%" }} />
+                )}
+                {wmUrl && (
+                  <a
+                    href={wmUrl}
+                    download="watermarked.wav"
+                    style={linkStyle}
+                  >
+                    ⬇ watermarked.wav
+                  </a>
+                )}
               </div>
             </div>
             <p style={{ fontSize: 12, color: "#888", marginTop: 8 }}>
@@ -382,36 +448,40 @@ export default function WatermarkTestPage() {
           Upload watermarked.wav from Test 2. WAV uses full threshold,
           compressed files use 10% to account for Opus codec loss.
         </p>
-
         <input
           ref={fileRef}
           type="file"
           accept="audio/*"
           style={{ display: "none" }}
-          onChange={(e) => { if (e.target.files[0]) analyzeFile(e.target.files[0]); }}
+          onChange={(e) => {
+            if (e.target.files[0]) analyzeFile(e.target.files[0]);
+          }}
         />
         <button style={btnStyle} onClick={() => fileRef.current?.click()}>
           📂 Upload Audio File
         </button>
-
         {detection?.status === "analyzing" && (
           <div style={{ marginTop: 12, color: "#888" }}>Analyzing…</div>
         )}
-
         {detection?.status === "done" && (
           <div style={resultBox(detection.passed)}>
             <div style={{ fontWeight: "bold", marginBottom: 8 }}>
-              {detection.passed ? "✅ WATERMARK DETECTED" : "❌ NOT DETECTED"}
-              {" "}({detection.isWav ? "lossless WAV" : "compressed"})
+              {detection.passed ? "✅ WATERMARK DETECTED" : "❌ NOT DETECTED"}{" "}
+              ({detection.isWav ? "lossless WAV" : "compressed"})
             </div>
             <div>Frames analyzed:  {detection.numFrames}</div>
-            <div>Detected frames:  {detection.detected} ({detection.rate}%)</div>
-            <div>Mean correlation: {detection.mean} (expected: {detection.expected})</div>
+            <div>
+              Detected frames:  {detection.detected} ({detection.rate}%)
+            </div>
+            <div>
+              Mean correlation: {detection.mean} (expected:{" "}
+              {detection.expected})
+            </div>
             <div>Threshold used:   {detection.threshold}</div>
             {!detection.passed && (
               <div style={{ marginTop: 8, color: "#ff9800" }}>
-                💡 If mean correlation is near 0, _processChunk is not embedding.
-                Check audio-worklet-processor.js.
+                💡 If mean correlation is near 0, _processChunk is not
+                embedding. Check audio-worklet-processor.js.
               </div>
             )}
           </div>
@@ -422,34 +492,39 @@ export default function WatermarkTestPage() {
       <section style={sectionStyle}>
         <h2 style={headingStyle}>Test 4 — Dynamic Config from Backend</h2>
         <p style={descStyle}>
-          Tests watermark embedding with values from the backend API.
-          Currently using a <strong>mock response</strong> — swap for a real
-          fetch once your teammate's endpoint is ready (see comment in code).
+          Tests watermark embedding with values from the backend API. Currently
+          using a <strong>mock response</strong> — swap for a real fetch once
+          your teammate's endpoint is ready (see comment in code).
         </p>
 
-        {/* Show the mock config so it's clear what's being tested */}
-        <div style={{
-          background: "#111",
-          border: "1px solid #444",
-          borderRadius: 6,
-          padding: "10px 14px",
-          marginBottom: 14,
-          fontSize: 12,
-          color: "#aaa",
-        }}>
+        <div
+          style={{
+            background: "#111",
+            border: "1px solid #444",
+            borderRadius: 6,
+            padding: "10px 14px",
+            marginBottom: 14,
+            fontSize: 12,
+            color: "#aaa",
+          }}
+        >
           <div style={{ color: "#888", marginBottom: 4 }}>
             Mock response (from{" "}
             <code style={{ color: "#60a5fa" }}>
-              GET /api/watermark/config?sessionId=XYZ&userId=123
+              GET /api/watermark/config?sessionId=XYZ&amp;userId=123
             </code>
             ):
           </div>
           <pre style={{ margin: 0, color: "#e5e7eb" }}>
-{JSON.stringify(MOCK_BACKEND_RESPONSE, null, 2)}
+            {JSON.stringify(MOCK_BACKEND_RESPONSE, null, 2)}
           </pre>
         </div>
 
-        <button style={btnStyle} onClick={runConfigTest} disabled={configRunning}>
+        <button
+          style={btnStyle}
+          onClick={runConfigTest}
+          disabled={configRunning}
+        >
           {configRunning ? "Fetching…" : "▶ Run Config Test"}
         </button>
 
@@ -457,36 +532,51 @@ export default function WatermarkTestPage() {
           <div style={resultBox(configResult.passed)}>
             {configResult.error ? (
               <>
-                <div style={{ fontWeight: "bold", marginBottom: 8 }}>❌ FAILED</div>
-                <div style={{ color: "#f44336" }}>Error: {configResult.error}</div>
+                <div style={{ fontWeight: "bold", marginBottom: 8 }}>
+                  ❌ FAILED
+                </div>
+                <div style={{ color: "#f44336" }}>
+                  Error: {configResult.error}
+                </div>
               </>
             ) : (
               <>
                 <div style={{ fontWeight: "bold", marginBottom: 8 }}>
                   {configResult.passed ? "✅ PASSED" : "❌ FAILED"}
                   {configResult.isMocked && (
-                    <span style={{
-                      marginLeft: 8,
-                      fontSize: 11,
-                      background: "#ff980033",
-                      color: "#ff9800",
-                      padding: "2px 6px",
-                      borderRadius: 3,
-                    }}>
+                    <span
+                      style={{
+                        marginLeft: 8,
+                        fontSize: 11,
+                        background: "#ff980033",
+                        color: "#ff9800",
+                        padding: "2px 6px",
+                        borderRadius: 3,
+                      }}
+                    >
                       MOCKED
                     </span>
                   )}
                 </div>
                 <div>
                   Seed: <strong>{String(configResult.seed)}</strong>
-                  {configResult.seedIsDynamic
-                    ? <span style={{ color: "#4caf50" }}> ✅ different from hardcoded default ({SEED})</span>
-                    : <span style={{ color: "#ff9800" }}> ⚠️ same as hardcoded default — backend may not be dynamic yet</span>
-                  }
+                  {configResult.seedIsDynamic ? (
+                    <span style={{ color: "#4caf50" }}>
+                      {" "}✅ different from hardcoded default ({SEED})
+                    </span>
+                  ) : (
+                    <span style={{ color: "#ff9800" }}>
+                      {" "}⚠️ same as hardcoded default — backend may not be
+                      dynamic yet
+                    </span>
+                  )}
                 </div>
                 <div>Alpha:     {configResult.alpha}</div>
                 <div>FrameSize: {configResult.frameSize}</div>
-                <div>WM corr:   {configResult.wmCorr}  (want &gt; {configResult.threshold})</div>
+                <div>
+                  WM corr:   {configResult.wmCorr} (want &gt;{" "}
+                  {configResult.threshold})
+                </div>
                 <div>Expected:  {configResult.expected}</div>
                 {configResult.passed && configResult.isMocked && (
                   <div style={{ marginTop: 8, color: "#ff9800" }}>
