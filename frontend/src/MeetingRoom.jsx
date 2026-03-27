@@ -2,7 +2,7 @@ import { useRef, useEffect, useState} from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import PropTypes from 'prop-types';
 import "./MeetingRoom.css";
-import { createProcessedStream } from "./audio/audioWorkletSetup";
+import createProcessedStream from "./audio/audioWorkletSetup";
 
 const API_BASE = import.meta.env.VITE_MONA_API_BASE;
 
@@ -191,9 +191,13 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
   const fetchWatermarkConfig = async () => {
     try {
-      const res = await fetch(
-        `https://${API_BASE}/api/watermark/config?sessionId=${roomId}&userId=${userId}`
-      );
+      const res = await fetch( `https://${API_BASE}/api/watermark/config?sessionId=${roomId}&userId=${userId}`, {
+        method: "GET",
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',  // ← Add this header
+        }
+      });
 
       const data = await res.json();
       return data;
@@ -230,83 +234,91 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
   // Initialize audio/video state from localStream
   useEffect(() => {
+    let localStream = null; // for cleanup
+    let audioContext = null;
+
     const initMedia = async () => {
-      const rawStream = await navigator.mediaDevices.getUserMedia({ 
-        video: true, 
-        audio: true 
-      });
-
-      // Fetch watermark config
-      const config = await fetchWatermarkConfig();
-
-      const processedStream = await createProcessedStream(rawStream, config);
-      // const processedStream = rawStream; // TEMP: skip AudioWorklet for now
-
-      // Save gainNode in ref
-      gainNodeRef.current = processedStream._gainNode;
-
-      console.log("Fetched local media stream");
-
-      // TEMPORARY: expose for console testing, remove after testing
-      // window.__processedStream = processedStream;
-      // window.__gainNode = processedStream._gainNode;
-
-      const localStream = processedStream;
-      localVideoRef.current.srcObject = localStream;
-
-      const audioTrack = localStream.getAudioTracks()[0] || null;
-      const videoTrack = localStream.getVideoTracks()[0] || null;
-
-      if (audioTrack) {
-        // Initial sync
-        audioTrack.enabled = isAudioEnabled;
-
-        audioTrack.onmute = () => {
-          setIsAudioEnabled(false);
-        };
-
-        audioTrack.onunmute = () => {
-          setIsAudioEnabled(true);
-        };
-
-        audioTrack.onended = () => {
-          setIsAudioEnabled(false);
-          console.warn("Audio track ended");
-        };
-      }
-
-      if (videoTrack) {
-        videoTrack.enabled = isVideoEnabled;
-
-        videoTrack.onmute = () => {
-          setIsVideoEnabled(false);
-        };
-
-        videoTrack.onunmute = () => {
-          setIsVideoEnabled(true);
-        };
-
-        videoTrack.onended = () => {
-          setIsVideoEnabled(false);
-          console.warn("Video track ended");
-        };
-      }
-
-      // Replace tracks in RTCPeerConnections
-      pcRef.current.forEach(pc => {
-        pc.getSenders().forEach(sender => {
-          if (sender.track?.kind === "audio" && audioTrack) {
-            sender.replaceTrack(audioTrack);
-          }
-          if (sender.track?.kind === "video" && videoTrack) {
-            sender.replaceTrack(videoTrack);
-          }
+      try {
+        // 1️⃣ Get raw media
+        const rawStream = await navigator.mediaDevices.getUserMedia({ 
+          video: true, 
+          audio: true 
         });
-      });
-    }
 
-    initMedia()
-  }, []);
+        // 2️⃣ Fetch watermark/audio processor config
+        const config = await fetchWatermarkConfig();
+
+        // 3️⃣ Process stream with AudioWorklet
+        const { stream: processedStream, audioContext: ctx } = await createProcessedStream(rawStream, config);
+        localStream = processedStream; // save for cleanup
+        audioContext = ctx;
+
+        // 4️⃣ Save GainNode in ref
+        gainNodeRef.current = processedStream._gainNode;
+
+        console.log("Fetched local media stream");
+
+        // 5️⃣ Assign to video element
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = processedStream;
+        }
+
+        // 6️⃣ Extract tracks
+        const audioTrack = processedStream.getAudioTracks()[0] || null;
+        const videoTrack = processedStream.getVideoTracks()[0] || null;
+
+        // 7️⃣ Audio track handling
+        if (audioTrack) {
+          audioTrack.enabled = isAudioEnabled;
+
+          audioTrack.onmute = () => setIsAudioEnabled(false);
+          audioTrack.onunmute = () => setIsAudioEnabled(true);
+          audioTrack.onended = () => {
+            setIsAudioEnabled(false);
+            console.warn("Audio track ended");
+          };
+        }
+
+        // 8️⃣ Video track handling
+        if (videoTrack) {
+          videoTrack.enabled = isVideoEnabled;
+
+          videoTrack.onmute = () => setIsVideoEnabled(false);
+          videoTrack.onunmute = () => setIsVideoEnabled(true);
+          videoTrack.onended = () => {
+            setIsVideoEnabled(false);
+            console.warn("Video track ended");
+          };
+        }
+
+        // 9️⃣ Replace tracks in all RTCPeerConnections
+        pcRef.current.forEach(pc => {
+          pc.getSenders().forEach(sender => {
+            if (sender.track?.kind === "audio" && audioTrack) {
+              sender.replaceTrack(audioTrack);
+            }
+            if (sender.track?.kind === "video" && videoTrack) {
+              sender.replaceTrack(videoTrack);
+            }
+          });
+        });
+      } catch (err) {
+        console.error("Failed to initialize local media:", err);
+      }
+    };
+
+    initMedia();
+
+    //  🔟 Cleanup function on component unmount
+    return () => {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      if (audioContext) {
+        audioContext.close();
+      }
+    };
+  }, []); // run once on mount
 
   useEffect(() => {
     fetchServerCredentials();
@@ -324,7 +336,6 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
     wsRef.current.onmessage = async (event) => {
       const data = JSON.parse(event.data);
-      console.log("WebSocket message:", data.type, data);
 
       switch (data.type) {
         case "room-not-found":

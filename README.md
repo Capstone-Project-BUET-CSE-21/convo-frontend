@@ -54,7 +54,7 @@ frontend/
     ├── App.css
     ├── index.css
     ├── Homepage.jsx
-    ├── SingleRoom.jsx
+    ├── MeetingRoom.jsx
     └── other components
 .gitignore
 README.md
@@ -98,7 +98,7 @@ Responsibilities:
 
 ---
 
-## SingleRoom.jsx
+## MeetingRoom.jsx
 
 Core collaborative page.
 
