@@ -99,6 +99,11 @@ export default function WatermarkTestPage() {
 
   const [configResult, setConfigResult] = useState(null);
   const [configRunning, setConfigRunning] = useState(false);
+  const [backendSessionId, setBackendSessionId] = useState("");
+  const [backendFile, setBackendFile] = useState(null);
+  const [backendLoading, setBackendLoading] = useState(false);
+  const [backendResult, setBackendResult] = useState(null);
+  const backendFileRef = useRef(null);
 
   // ─── TEST 1 ───────────────────────────────────────────────────────────────
   function runAlgoTest() {
@@ -326,6 +331,37 @@ export default function WatermarkTestPage() {
       });
     } finally {
       setConfigRunning(false);
+    }
+  }
+
+
+  // ─── TEST 5 ───────────────────────────────────────────────────────────────
+  async function runBackendDetection() {
+    if (!backendFile || !backendSessionId.trim()) return;
+    setBackendLoading(true);
+    setBackendResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("audio", backendFile);
+      formData.append("sessionId", backendSessionId.trim());
+
+      const res = await fetch(`/api/watermark/detect`, {
+        method: "POST",
+        body: formData,
+      });
+
+      const json = await res.json();
+
+      if (!res.ok) {
+        setBackendResult({ error: json.error || `Server error ${res.status}` });
+      } else {
+        setBackendResult(json);
+      }
+    } catch (err) {
+      setBackendResult({ error: `Network error: ${err.message}` });
+    } finally {
+      setBackendLoading(false);
     }
   }
 
@@ -584,6 +620,94 @@ export default function WatermarkTestPage() {
                     fetch() block in runConfigTest() and remove the mock.
                   </div>
                 )}
+              </>
+            )}
+          </div>
+        )}
+      </section>
+      {/* ── TEST 5 ── */}
+      <section style={sectionStyle}>
+        <h2 style={headingStyle}>Test 5 — Backend Detection API</h2>
+        <p style={descStyle}>
+          Upload a WAV file and enter a session ID to call the real
+          <code style={{ color: "#60a5fa", margin: "0 4px" }}>POST /api/watermark/detect</code>
+          endpoint. The session must have users registered via
+          <code style={{ color: "#60a5fa", margin: "0 4px" }}>GET /api/watermark/config</code> first.
+        </p>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+          <input
+            type="text"
+            placeholder="Session ID (e.g. abc123)"
+            value={backendSessionId}
+            onChange={(e) => setBackendSessionId(e.target.value)}
+            style={{
+              background: "#111", border: "1px solid #444", borderRadius: 6,
+              padding: "8px 12px", color: "#fff", fontSize: 13, fontFamily: "monospace",
+            }}
+          />
+          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+            <input
+              ref={backendFileRef}
+              type="file"
+              accept="audio/wav,audio/*"
+              style={{ display: "none" }}
+              onChange={(e) => setBackendFile(e.target.files[0] || null)}
+            />
+            <button style={btnStyle} onClick={() => backendFileRef.current?.click()}>
+              📂 Choose Audio File
+            </button>
+            {backendFile && (
+              <span style={{ fontSize: 12, color: "#aaa" }}>{backendFile.name}</span>
+            )}
+          </div>
+          <button
+            style={{ ...btnStyle, background: backendLoading ? "#555" : "#16a34a" }}
+            onClick={runBackendDetection}
+            disabled={backendLoading || !backendFile || !backendSessionId.trim()}
+          >
+            {backendLoading ? "Detecting…" : "🔍 Detect Watermark"}
+          </button>
+        </div>
+
+        {backendResult && (
+          <div style={resultBox(backendResult.watermarkDetected)}>
+            {backendResult.error ? (
+              <>
+                <div style={{ fontWeight: "bold", marginBottom: 6 }}>❌ Request Failed</div>
+                <div style={{ color: "#f44336" }}>{backendResult.error}</div>
+              </>
+            ) : (
+              <>
+                <div style={{ fontWeight: "bold", marginBottom: 8, fontSize: 15 }}>
+                  {backendResult.watermarkDetected ? "✅ WATERMARK DETECTED" : "❌ NO WATERMARK DETECTED"}
+                </div>
+                {backendResult.detectedUser && (
+                  <div>Detected User: <strong style={{ color: "#4caf50" }}>{backendResult.detectedUser}</strong></div>
+                )}
+                <div>Session ID: {backendResult.sessionId}</div>
+                <div>Correlation Score: <strong>{backendResult.correlationScore}</strong></div>
+                <div>Frames Analyzed: {backendResult.totalFramesAnalyzed}</div>
+                <div>Users Checked: {backendResult.totalUsersChecked}</div>
+                {backendResult.allUserScores && Object.keys(backendResult.allUserScores).length > 0 && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ color: "#aaa", marginBottom: 4, fontSize: 12 }}>All User Scores:</div>
+                    <div style={{
+                      background: "#0d0d0d", borderRadius: 4, padding: "8px 12px",
+                      fontSize: 12, fontFamily: "monospace",
+                    }}>
+                      {Object.entries(backendResult.allUserScores).map(([uid, score]) => (
+                        <div key={uid} style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
+                          <span style={{ color: uid === backendResult.detectedUser ? "#4caf50" : "#aaa" }}>
+                            {uid === backendResult.detectedUser ? "▶ " : "  "}{uid}
+                          </span>
+                          <span>{score}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div style={{ marginTop: 10, color: "#888", fontSize: 12 }}>{backendResult.message}</div>
               </>
             )}
           </div>

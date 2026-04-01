@@ -10,4 +10,13 @@ export default defineConfig({
       },
     }),
   ],
+  server: {
+    proxy: {
+      // Forwards /api/watermark/* requests to the watermark Spring Boot service
+      '/api/watermark': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
+      },
+    },
+  },
 })
