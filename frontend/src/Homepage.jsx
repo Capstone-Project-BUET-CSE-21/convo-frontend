@@ -65,26 +65,6 @@ const Homepage = ({ homepageAttributes }) => {
         fetchLocalMedia();
     }, []);
 
-    // const toggleAudio = () => {
-    //     if (localStream) {
-    //         const audioTrack = localStream.getAudioTracks()[0];
-    //         if (audioTrack) {
-    //             audioTrack.enabled = !audioTrack.enabled;
-    //             setIsAudioEnabled(audioTrack.enabled);
-    //         }
-    //     }
-    // };
-
-    // const toggleVideo = () => {
-    //     if (localStream) {
-    //         const videoTrack = localStream.getVideoTracks()[0];
-    //         if (videoTrack) {
-    //             videoTrack.enabled = !videoTrack.enabled;
-    //             setIsVideoEnabled(videoTrack.enabled);
-    //         }
-    //     }
-    // };
-
     return (
         <div className="homepage-container">
             <div className="video-container">

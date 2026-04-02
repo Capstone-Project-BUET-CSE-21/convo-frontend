@@ -4,7 +4,7 @@ import PropTypes from 'prop-types';
 import "./MeetingRoom.css";
 import createProcessedStream from "./audio/audioWorkletSetup";
 
-const API_BASE = import.meta.env.VITE_MONA_API_BASE;
+const API_BASE = "localhost:8080"; // Adjust if your backend runs on a different host/port
 
 const MeetingRoom = ({ meetingRoomAttributes }) => {
   const { command, isAudioEnabledPair, isVideoEnabledPair, toggleAudio, toggleVideo } = meetingRoomAttributes;
@@ -18,6 +18,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   const wsRef = useRef(null);
   const pcRef = useRef(new Map());
 
+  const rawStreamRef = useRef(null); // Store raw media stream for later processing and track replacement
   const localVideoRef = useRef(null);
   const remoteVideosRef = useRef(new Map());
   const gainNodeRef = useRef(null);
@@ -26,7 +27,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
-  const [userId, setUserId] = useState([]);
+  const [userId, setUserId] = useState("");
 
 
   const copyMeetingId = async () => {
@@ -38,26 +39,6 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       console.error("Failed to copy meeting ID:", err);
     }
   };
-
-  // const toggleAudio = () => {
-  //   if (localStream) {
-  //     const audioTrack = localStream.getAudioTracks()[0];
-  //     if (audioTrack) {
-  //       audioTrack.enabled = !audioTrack.enabled;
-  //       setIsAudioEnabled(audioTrack.enabled);
-  //     }
-  //   }
-  // };
-
-  // const toggleVideo = () => {
-  //   if (localStream) {
-  //     const videoTrack = localStream.getVideoTracks()[0];
-  //     if (videoTrack) {
-  //       videoTrack.enabled = !videoTrack.enabled;
-  //       setIsVideoEnabled(videoTrack.enabled);
-  //     }
-  //   }
-  // };
 
   const createPeerConnection = async (peerId) => {
     if (pcRef.current.has(peerId)) {
@@ -188,143 +169,28 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     console.log("Left room: " + roomId);
   };
 
-
-  const fetchWatermarkConfig = async () => {
-    try {
-      const res = await fetch( `https://${API_BASE}/api/watermark/config?sessionId=${roomId}&userId=${userId}`, {
-        method: "GET",
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true',  // ← Add this header
-        }
-      });
-
-      const data = await res.json();
-      return data;
-    } catch (err) {
-      console.error("Failed to fetch watermark config:", err);
-
-      // fallback (important)
-      return {
-        seed: 42,
-        alpha: 0.005,
-        frameSize: 256
-      };
-    }
-  };
-
   const fetchServerCredentials = async () => {
-    console.log("Fetching server credentials from backend");
     try {
-      const response = await fetch(`https://${API_BASE}/server-credentials`, {
+      const response = await fetch(`/api/backend/credentials`, {
         method: "GET",
         headers: {
           'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true',  // ← Add this header
+          // 'ngrok-skip-browser-warning': 'true',  // ← Add this header
         },
       });
+
       const data = await response.json();
       serverRef.current = data.credentials;
-      console.log("Fetched server credentials:", serverRef.current);
     } catch (err) {
       console.error("Failed to fetch server credentials:", err);
     }
   }
-  
-
-  // Initialize audio/video state from localStream
-  useEffect(() => {
-    let localStream = null; // for cleanup
-    let audioContext = null;
-
-    const initMedia = async () => {
-      try {
-        // 1️⃣ Get raw media
-        const rawStream = await navigator.mediaDevices.getUserMedia({ 
-          video: true, 
-          audio: true 
-        });
-
-        // 2️⃣ Fetch watermark/audio processor config
-        const config = await fetchWatermarkConfig();
-
-        // 3️⃣ Process stream with AudioWorklet
-        const { stream: processedStream, audioContext: ctx } = await createProcessedStream(rawStream, config);
-        localStream = processedStream; // save for cleanup
-        audioContext = ctx;
-
-        // 4️⃣ Save GainNode in ref
-        gainNodeRef.current = processedStream._gainNode;
-
-        console.log("Fetched local media stream");
-
-        // 5️⃣ Assign to video element
-        if (localVideoRef.current) {
-          localVideoRef.current.srcObject = processedStream;
-        }
-
-        // 6️⃣ Extract tracks
-        const audioTrack = processedStream.getAudioTracks()[0] || null;
-        const videoTrack = processedStream.getVideoTracks()[0] || null;
-
-        // 7️⃣ Audio track handling
-        if (audioTrack) {
-          audioTrack.enabled = isAudioEnabled;
-
-          audioTrack.onmute = () => setIsAudioEnabled(false);
-          audioTrack.onunmute = () => setIsAudioEnabled(true);
-          audioTrack.onended = () => {
-            setIsAudioEnabled(false);
-            console.warn("Audio track ended");
-          };
-        }
-
-        // 8️⃣ Video track handling
-        if (videoTrack) {
-          videoTrack.enabled = isVideoEnabled;
-
-          videoTrack.onmute = () => setIsVideoEnabled(false);
-          videoTrack.onunmute = () => setIsVideoEnabled(true);
-          videoTrack.onended = () => {
-            setIsVideoEnabled(false);
-            console.warn("Video track ended");
-          };
-        }
-
-        // 9️⃣ Replace tracks in all RTCPeerConnections
-        pcRef.current.forEach(pc => {
-          pc.getSenders().forEach(sender => {
-            if (sender.track?.kind === "audio" && audioTrack) {
-              sender.replaceTrack(audioTrack);
-            }
-            if (sender.track?.kind === "video" && videoTrack) {
-              sender.replaceTrack(videoTrack);
-            }
-          });
-        });
-      } catch (err) {
-        console.error("Failed to initialize local media:", err);
-      }
-    };
-
-    initMedia();
-
-    //  🔟 Cleanup function on component unmount
-    return () => {
-      if (localStream) {
-        localStream.getTracks().forEach(track => track.stop());
-      }
-      if (audioContext) {
-        audioContext.close();
-      }
-    };
-  }, []); // run once on mount
 
   useEffect(() => {
     fetchServerCredentials();
 
     console.log("Setting up WebSocket connection");
-    wsRef.current = new WebSocket(`wss://${API_BASE}/ws`);
+    wsRef.current = new WebSocket(`ws://${API_BASE}/ws`);
 
     wsRef.current.onopen = () => {
       console.log("WebSocket connected, sending", command, "for room", roomId);
@@ -354,6 +220,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
         case "start-success" :
         case "join-success" :
+          console.log("Received user ID from server:", data.peerId);
           setUserId(data.peerId);
           break;
 
@@ -412,6 +279,128 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     };
   }, []); // Added dependencies
 
+  useEffect(() => {
+    const initMedia = async () => {
+      const rawStream = await navigator.mediaDevices.getUserMedia({ 
+        video: true, 
+        audio: true 
+      });
+
+      if (localVideoRef.current) 
+        localVideoRef.current.srcObject = rawStream;
+
+      // store rawStream in a ref for later
+      rawStreamRef.current = rawStream;
+    };
+
+    initMedia();
+  }, []);
+
+
+  const fetchWatermarkConfig = async () => {
+    try {
+      const res = await fetch( `/api/watermark/config?sessionId=${roomId}&userId=${userId}`, {
+        method: "GET",
+        headers: {
+          'Content-Type': 'application/json',
+          // 'ngrok-skip-browser-warning': 'true',  // ← Add this header
+        }
+      });
+
+      const data = await res.json();
+      console.log("Fetched watermark config:", data);
+      return data;
+    } catch (err) {
+      console.error("Failed to fetch watermark config:", err);
+
+      // fallback (important)
+      return {
+        seed: 42,
+        alpha: 0.005,
+        frameSize: 256
+      };
+    }
+  };
+
+  useEffect(() => {
+    if (!userId) return;  // guard
+
+    let localStream = null; // for cleanup
+    let audioContext = null;
+
+    const applyWatermark = async () => {
+      try{
+        const config = await fetchWatermarkConfig();
+        const { stream: processedStream, audioContext: ctx } = await createProcessedStream(rawStreamRef.current, config);
+        localStream = processedStream; // save for cleanup
+        audioContext = ctx;
+
+        // 4️⃣ Save GainNode in ref
+        gainNodeRef.current = processedStream._gainNode;
+
+        // 5️⃣ Assign to video element
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = processedStream;
+        }
+
+        // 6️⃣ Extract tracks
+        const audioTrack = processedStream.getAudioTracks()[0] || null;
+        const videoTrack = processedStream.getVideoTracks()[0] || null;
+
+        // 7️⃣ Audio track handling
+        if (audioTrack) {
+          audioTrack.enabled = isAudioEnabled;
+
+          audioTrack.onmute = () => setIsAudioEnabled(false);
+          audioTrack.onunmute = () => setIsAudioEnabled(true);
+          audioTrack.onended = () => {
+            setIsAudioEnabled(false);
+            console.warn("Audio track ended");
+          };
+        }
+
+        // 8️⃣ Video track handling
+        if (videoTrack) {
+          videoTrack.enabled = isVideoEnabled;
+
+          videoTrack.onmute = () => setIsVideoEnabled(false);
+          videoTrack.onunmute = () => setIsVideoEnabled(true);
+          videoTrack.onended = () => {
+            setIsVideoEnabled(false);
+            console.warn("Video track ended");
+          };
+        }
+
+        // 9️⃣ Replace tracks in all RTCPeerConnections
+        pcRef.current.forEach(pc => {
+          pc.getSenders().forEach(sender => {
+            if (sender.track?.kind === "audio" && audioTrack) {
+              sender.replaceTrack(audioTrack);
+            }
+            if (sender.track?.kind === "video" && videoTrack) {
+              sender.replaceTrack(videoTrack);
+            }
+          });
+        });
+      } catch (err) {
+        console.error("Error applying watermark:", err);
+      }
+    };
+
+    applyWatermark();
+
+    //  🔟 Cleanup function on component unmount
+    return () => {
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+      }
+      if (audioContext) {
+        audioContext.close();
+      }
+    };
+  }, [userId]); // fires when userId is set after WS handshake
+
+  
   // Show max 5 remote participants (when more than 6 total)
   const visiblePeers = peers.length > 5 ? peers.slice(0, 5) : peers;
   const hiddenPeersCount = peers.length > 5 ? peers.length - 5 : 0;
