@@ -1,7 +1,12 @@
 # Convo Frontend 
 Frontend for the CSE 450 Capstone Project
 Convo,a full-stack web application, built with **React and Vite**.
+## Project Status
 
+> **Stable Branch:** `main`  
+>  
+> The `main` branch always contains stable, tested, and production-ready code.  
+> For ongoing development, use other branches.
 Backend Repository:
 https://github.com/Capstone-Project-BUET-CSE-21/convo-backend
 
