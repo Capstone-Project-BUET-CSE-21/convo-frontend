@@ -109,10 +109,10 @@ const Homepage = ({ homepageAttributes }) => {
     return (
         <div className="homepage-container">
             <div className="video-container">
-                <video 
-                    ref={localVideoRef} 
-                    autoPlay 
-                    muted 
+                <video
+                    ref={localVideoRef}
+                    autoPlay
+                    muted
                     className="local-video"
                 />
                 {!isVideoEnabled && (
@@ -121,10 +121,10 @@ const Homepage = ({ homepageAttributes }) => {
                     </div>
                 )}
 
-                
+
                 {/* Media controls */}
                 <div className="media-controls">
-                    <button 
+                    <button
                         className={`btn-control ${!isAudioEnabled ? 'disabled' : ''}`}
                         onClick={() => toggleAudio()} // Pass gainNodeRef
                         title={isAudioEnabled ? "Mute microphone" : "Unmute microphone"}
@@ -137,7 +137,7 @@ const Homepage = ({ homepageAttributes }) => {
                             {!isAudioEnabled && <line x1="1" y1="1" x2="23" y2="23"></line>}
                         </svg>
                     </button>
-                    <button 
+                    <button
                         className={`btn-control ${!isVideoEnabled ? 'disabled' : ''}`}
                         onClick={() => toggleVideo()}
                         title={isVideoEnabled ? "Turn off camera" : "Turn on camera"}
@@ -155,21 +155,23 @@ const Homepage = ({ homepageAttributes }) => {
                 <div className="card">
                     <div className="welcome-text">
                         <div className="welcome-line">Welcome to</div>
-                        <div className="app-name">Convay Mini</div>
+                        <div className="app-logo">
+                            <img src="/convo-logo-2.png" alt="Convo Logo" className="logo-img" />
+                        </div>
                     </div>
 
-                    <img 
-                        src="convay_logo.png" 
-                        alt="Convay Mini Logo" 
+                    <img
+                        src="convo-logo-1.png"
+                        alt="Convo Logo"
                         className="card-logo"
                     />
-                    <button 
+                    <button
                         className="btn btn-primary"
                         onClick={startMeeting}
                     >
                         Start a meeting
                     </button>
-                    <button 
+                    <button
                         className="btn btn-primary"
                         onClick={joinMeeting}
                     >
@@ -179,7 +181,7 @@ const Homepage = ({ homepageAttributes }) => {
             ) : (
                 <div className="card">
                     {/* Back button */}
-                    <button 
+                    <button
                         className="btn-back"
                         onClick={goBack}
                         title="Go back"
@@ -197,7 +199,7 @@ const Homepage = ({ homepageAttributes }) => {
                                 <span className="meeting-id-label">Meeting ID</span>
                                 <span className="meeting-id-value">{meetingId}</span>
                             </div>
-                            <button 
+                            <button
                                 className="btn btn-copy"
                                 onClick={copyMeetingId}
                                 title="Copy meeting ID"
@@ -214,7 +216,7 @@ const Homepage = ({ homepageAttributes }) => {
                                 )}
                                 <span style={{ marginLeft: '6px' }}>{copied ? 'Copied' : 'Copy'}</span>
                             </button>
-                            <button 
+                            <button
                                 className="btn btn-primary"
                                 onClick={handleJoinOrStart}
                             >
@@ -223,14 +225,14 @@ const Homepage = ({ homepageAttributes }) => {
                         </>
                     ) : (
                         <>
-                            <input 
-                                type="text" 
-                                placeholder="Enter Meeting ID" 
-                                value={meetingId} 
+                            <input
+                                type="text"
+                                placeholder="Enter Meeting ID"
+                                value={meetingId}
                                 onChange={(e) => setMeetingId(e.target.value)}
                                 className="meeting-input"
                             />
-                            <button 
+                            <button
                                 className="btn btn-primary"
                                 onClick={handleJoinOrStart}
                             >
