@@ -91,12 +91,12 @@ export default function WatermarkTestPage() {
   const [origUrl, setOrigUrl] = useState(null);
   // Config used during the last recording — needed by Test 3
   const [recConfig, setRecConfig] = useState(null);
-  const [recConfigLoading, setRecConfigLoading] = useState(false);
+  const [_, setRecConfigLoading] = useState(false);
   const [recSessionId, setRecSessionId] = useState("");
   const [recUserId, setRecUserId] = useState("");
   const timerRef = useRef(null);
   const samplesRef = useRef([]);
-  const fileRef = useRef(null);
+  // const fileRef = useRef(null);
 
   // ── Test 3 ──
   const [detection, setDetection] = useState(null);

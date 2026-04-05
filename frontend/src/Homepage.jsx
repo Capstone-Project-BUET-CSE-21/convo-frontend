@@ -4,8 +4,10 @@ import PropTypes from "prop-types";
 import "./Homepage.css"; // Import your CSS file
 
 const Homepage = ({ homepageAttributes }) => {
-    const { commandPair, isAudioEnabled, isVideoEnabled, toggleAudio, toggleVideo } = homepageAttributes;
+    const { commandPair, isAudioEnabledPair, isVideoEnabledPair } = homepageAttributes;
     const { command, setCommand } = commandPair;
+    const { isAudioEnabled, setIsAudioEnabled } = isAudioEnabledPair;
+    const { isVideoEnabled, setIsVideoEnabled } = isVideoEnabledPair;
 
     const [isEnteringMeetingId, setIsEnteringMeetingId] = useState(false);
     const [meetingId, setMeetingId] = useState("");
@@ -53,16 +55,55 @@ const Homepage = ({ homepageAttributes }) => {
         }
     };
 
-    useEffect(() => {
-        const fetchLocalMedia = async () => {
-            if (localVideoRef.current) {
-                localVideoRef.current.srcObject = await navigator.mediaDevices.getUserMedia({
-                    video: true,
-                    audio: true
-                });
-            }
+    const toggleAudio = () => {
+        const stream = localVideoRef.current?.srcObject;
+        if (stream) {
+            const next = !isAudioEnabled;
+            stream.getAudioTracks().forEach(t => { t.enabled = next; });
+            setIsAudioEnabled(next);
         }
+    };
+
+    const toggleVideo = () => {
+        const stream = localVideoRef.current?.srcObject;
+        if (stream) {
+            const next = !isVideoEnabled;
+            stream.getVideoTracks().forEach(t => { t.enabled = next; });
+            setIsVideoEnabled(next);
+        }
+    };
+
+    useEffect(() => {
+        let cancelled = false;
+        let localStream = null;
+
+        const fetchLocalMedia = async () => {
+            localStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true
+            });
+
+            if (cancelled) {
+                // unmounted before stream was ready, stop immediately
+                localStream.getTracks().forEach(t => t.stop());
+                return;
+            }
+
+            // Apply current toggle state to the fresh stream
+            localStream.getAudioTracks().forEach(t => { t.enabled = isAudioEnabled; });
+            localStream.getVideoTracks().forEach(t => { t.enabled = isVideoEnabled; });
+
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = localStream;
+            }
+        };
+
         fetchLocalMedia();
+
+        return () => {
+            cancelled = true;
+            localStream?.getTracks().forEach(t => t.stop());
+        };
     }, []);
 
     return (
@@ -85,7 +126,7 @@ const Homepage = ({ homepageAttributes }) => {
                 <div className="media-controls">
                     <button 
                         className={`btn-control ${!isAudioEnabled ? 'disabled' : ''}`}
-                        onClick={() => toggleAudio(localVideoRef.current?.srcObject)} // Pass gainNodeRef
+                        onClick={() => toggleAudio()} // Pass gainNodeRef
                         title={isAudioEnabled ? "Mute microphone" : "Unmute microphone"}
                     >
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -98,7 +139,7 @@ const Homepage = ({ homepageAttributes }) => {
                     </button>
                     <button 
                         className={`btn-control ${!isVideoEnabled ? 'disabled' : ''}`}
-                        onClick={() => toggleVideo(localVideoRef.current?.srcObject)}
+                        onClick={() => toggleVideo()}
                         title={isVideoEnabled ? "Turn off camera" : "Turn on camera"}
                     >
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -209,10 +250,14 @@ Homepage.propTypes = {
             command: PropTypes.string.isRequired,
             setCommand: PropTypes.func.isRequired
         }).isRequired,
-        isAudioEnabled: PropTypes.bool.isRequired,
-        isVideoEnabled: PropTypes.bool.isRequired,
-        toggleAudio: PropTypes.func.isRequired,
-        toggleVideo: PropTypes.func.isRequired
+        isAudioEnabledPair: PropTypes.shape({
+            isAudioEnabled: PropTypes.bool.isRequired,
+            setIsAudioEnabled: PropTypes.func.isRequired
+        }).isRequired,
+        isVideoEnabledPair: PropTypes.shape({
+            isVideoEnabled: PropTypes.bool.isRequired,
+            setIsVideoEnabled: PropTypes.func.isRequired
+        }).isRequired
     }).isRequired
 };
 
