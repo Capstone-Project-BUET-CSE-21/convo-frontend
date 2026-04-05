@@ -6,7 +6,8 @@ Convo,a full-stack web application, built with **React and Vite**.
 > **Stable Branch:** `main`  
 >  
 > The `main` branch always contains stable, tested, and production-ready code.  
-> For ongoing development, use other branches.
+
+
 Backend Repository:
 https://github.com/Capstone-Project-BUET-CSE-21/convo-backend
 
