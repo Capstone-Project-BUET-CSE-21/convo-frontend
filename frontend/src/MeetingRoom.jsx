@@ -296,7 +296,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
      
 const backendWsUrl = BACKEND_URL.replace('https://', 'wss://').replace('http://', 'ws://');
 const ws = new WebSocket(`${backendWsUrl}/ws`);
-
+wsRef.current = ws;
       ws.onopen = () => {
         ws.send(JSON.stringify({ type: command, roomId }));
       };
