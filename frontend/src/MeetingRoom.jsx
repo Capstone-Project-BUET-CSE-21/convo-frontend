@@ -8,8 +8,7 @@ import MeetingVideos from "./meeting/MeetingVideos";
 import MeetingControls from "./meeting/MeetingControls";
 import useMeetingRecording from "./meeting/useMeetingRecording";
 
-const API_BASE = "localhost:8080"; // Adjust if your backend runs on a different host/port
-
+const API_BASE = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
 const MeetingRoom = ({ meetingRoomAttributes }) => {
   const { command, isAudioEnabledPair, isVideoEnabledPair } = meetingRoomAttributes;
   const { isAudioEnabled, setIsAudioEnabled } = isAudioEnabledPair;
@@ -294,7 +293,8 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       rawStreamRef.current = rawStream;
       if (localVideoRef.current) localVideoRef.current.srcObject = rawStream;
 
-      const ws = new WebSocket(`ws://${window.location.host}/ws`);
+     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
       wsRef.current = ws;
 
       ws.onopen = () => {
