@@ -17,13 +17,20 @@ export default defineConfig(({ mode }) => {
     server: {
       proxy: {
         '/api/backend': {
-          target: `https://${env.VITE_DEBO_API_BASE}`,
+          // target: `https://${env.VITE_DEBO_API_BASE}`,
+          target: `http://localhost:8080`,
           changeOrigin: true,
         },
         '/api/watermark': {
-          target: `https://${env.VITE_MONA_API_BASE}`,
+          // target: `https://${env.VITE_MONA_API_BASE}`,
+          target: `http://localhost:8081`,
           changeOrigin: true,
         },
+        '/ws': {
+          target: 'ws://localhost:8080',
+          ws: true,
+          changeOrigin: true
+        }
       },
     },
   }

@@ -8,7 +8,7 @@ import MeetingVideos from "./meeting/MeetingVideos";
 import MeetingControls from "./meeting/MeetingControls";
 import useMeetingRecording from "./meeting/useMeetingRecording";
 
-const API_BASE = import.meta.env.VITE_DEBO_API_BASE; // Adjust if your backend runs on a different host/port
+const API_BASE = "localhost:8080"; // Adjust if your backend runs on a different host/port
 
 const MeetingRoom = ({ meetingRoomAttributes }) => {
   const { command, isAudioEnabledPair, isVideoEnabledPair } = meetingRoomAttributes;
@@ -199,8 +199,10 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     try {
       const res = await fetch(`/api/watermark/config?sessionId=${roomId}&userId=${userId}`, {
         method: "GET",
-        headers: { 'Content-Type': 'application/json', 
-        'ngrok-skip-browser-warning': 'true'}
+        headers: { 
+          'Content-Type': 'application/json',
+          // 'ngrok-skip-browser-warning': 'true'
+        }
       });
       const data = await res.json();
       return data;
@@ -253,8 +255,8 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       const response = await fetch(`/api/backend/credentials`, {
         method: "GET",
         headers: { 'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true'
-         },
+          // 'ngrok-skip-browser-warning': 'true'
+        },
       });
       const data = await response.json();
       serverRef.current = data.credentials;
@@ -292,7 +294,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       rawStreamRef.current = rawStream;
       if (localVideoRef.current) localVideoRef.current.srcObject = rawStream;
 
-      const ws = new WebSocket(`wss://${API_BASE}/ws`);
+      const ws = new WebSocket(`ws://${window.location.host}/ws`);
       wsRef.current = ws;
 
       ws.onopen = () => {
