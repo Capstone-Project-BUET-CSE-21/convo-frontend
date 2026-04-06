@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 // ─── Self-contained helpers — same logic as audio-worklet-processor.js ────────
-const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL || 'http://localhost:8081';
+const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL;
 function mulberry32(seed) {
   let s = seed >>> 0;
   return () => {

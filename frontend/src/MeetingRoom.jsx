@@ -8,8 +8,10 @@ import MeetingVideos from "./meeting/MeetingVideos";
 import MeetingControls from "./meeting/MeetingControls";
 import useMeetingRecording from "./meeting/useMeetingRecording";
 
-const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL || 'http://localhost:8081';
+const WS_URL = import.meta.env.VITE_WS_BASE;
+const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
+const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL;
+
 const MeetingRoom = ({ meetingRoomAttributes }) => {
   const { command, isAudioEnabledPair, isVideoEnabledPair } = meetingRoomAttributes;
   const { isAudioEnabled, setIsAudioEnabled } = isAudioEnabledPair;
@@ -294,10 +296,9 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       rawStreamRef.current = rawStream;
       if (localVideoRef.current) localVideoRef.current.srcObject = rawStream;
 
-     
-const backendWsUrl = BACKEND_URL.replace('https://', 'wss://').replace('http://', 'ws://');
-const ws = new WebSocket(`${backendWsUrl}/ws`);
-wsRef.current = ws;
+      const ws = new WebSocket(`${WS_URL}/ws`);
+      wsRef.current = ws;
+
       ws.onopen = () => {
         ws.send(JSON.stringify({ type: command, roomId }));
       };
