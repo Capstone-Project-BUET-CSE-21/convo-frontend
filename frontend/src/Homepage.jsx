@@ -200,6 +200,8 @@ const Homepage = ({ homepageAttributes }) => {
                             <div className="meeting-id-display">
                                 <span className="meeting-id-label">Meeting ID</span>
                                 <span className="meeting-id-value">{meetingId}</span>
+                                <span className="meeting-id-label">Meeting Link</span>
+                                <span className="meeting-id-link">{`https://convo-frontend-nine.vercel.app/room/${meetingId}`}</span>
                                 <div className="meeting-id-actions">
                                     <button
                                         className={`meeting-id-action-btn ${copied ? 'active' : ''}`}

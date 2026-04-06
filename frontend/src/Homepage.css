@@ -248,7 +248,17 @@
     font-family: 'Courier New', monospace;
     letter-spacing: 1px;
 }
-
+.meeting-id-link{
+    font-size: 18px;
+    color: #0a0a0a;
+    font-weight: 600;
+    font-family: 'Courier New', monospace;
+    display: inline-block;        /* needed for max-width to apply properly */
+    max-width: 30ch;              /* roughly 22 characters per line */
+    word-wrap: break-word;        /* break long words if needed */
+    overflow-wrap: break-word;    /* fallback for older browsers */
+    white-space: normal;
+}
 /* Responsive */
 @media (max-width: 1200px) {
     .homepage-container {
