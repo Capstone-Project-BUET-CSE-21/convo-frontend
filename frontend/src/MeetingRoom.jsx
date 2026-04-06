@@ -200,11 +200,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   const fetchWatermarkConfig = async (userId) => {
     try {
       const res = await fetch(`${WATERMARK_URL}/api/watermark/config?sessionId=${roomId}&userId=${userId}`, {
-        method: "GET",
-        headers: { 
-          'Content-Type': 'application/json',
-          // 'ngrok-skip-browser-warning': 'true'
-        }
+        method: "GET"
       });
       const data = await res.json();
       return data;
@@ -255,10 +251,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   const fetchServerCredentials = async () => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/backend/credentials`, {
-        method: "GET",
-        headers: { 'Content-Type': 'application/json',
-          // 'ngrok-skip-browser-warning': 'true'
-        },
+        method: "GET"
       });
       const data = await response.json();
       serverRef.current = data.credentials;
