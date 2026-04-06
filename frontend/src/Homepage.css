@@ -288,3 +288,51 @@
     width: 160px;
     height: auto;
 }
+
+.meeting-id-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.meeting-id-actions-divider {
+    width: 1px;
+    height: 20px;
+    background: rgba(0, 0, 0, 0.15);
+    margin: 0 8px;
+}
+
+.meeting-id-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 16px;
+    border: none;
+    background: transparent;
+    color: #555;
+    font-size: 14px;
+    font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-weight: 500;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+}
+
+.meeting-id-action-btn svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+}
+
+.meeting-id-action-btn:hover {
+    background: rgba(128, 90, 230, 0.08);
+    color: var(--primary-purple);
+}
+
+.meeting-id-action-btn.active {
+    color: var(--primary-purple);
+}

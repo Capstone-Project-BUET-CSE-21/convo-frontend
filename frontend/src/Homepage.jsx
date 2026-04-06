@@ -12,9 +12,12 @@ const Homepage = ({ homepageAttributes }) => {
     const [isEnteringMeetingId, setIsEnteringMeetingId] = useState(false);
     const [meetingId, setMeetingId] = useState("");
     const [copied, setCopied] = useState(false);
+    const [copiedLink, setCopiedLink] = useState(false);
 
     const localVideoRef = useRef(null);
     const navigate = useNavigate();
+
+    const getMeetingLink = (id) => `https://convo-frontend-nine.vercel.app/room/${id}`;
 
     const generateMeetingId = () => {
         return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
@@ -37,6 +40,7 @@ const Homepage = ({ homepageAttributes }) => {
         setMeetingId("");
         setCommand("");
         setCopied(false);
+        setCopiedLink(false);
     };
 
     const copyMeetingId = async () => {
@@ -46,6 +50,16 @@ const Homepage = ({ homepageAttributes }) => {
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
             console.error("Failed to copy meeting ID:", err);
+        }
+    };
+
+    const copyMeetingLink = async () => {
+        try {
+            await navigator.clipboard.writeText(getMeetingLink(meetingId));
+            setCopiedLink(true);
+            setTimeout(() => setCopiedLink(false), 2000);
+        } catch (err) {
+            console.error("Failed to copy meeting link:", err);
         }
     };
 
@@ -84,12 +98,10 @@ const Homepage = ({ homepageAttributes }) => {
             });
 
             if (cancelled) {
-                // unmounted before stream was ready, stop immediately
                 localStream.getTracks().forEach(t => t.stop());
                 return;
             }
 
-            // Apply current toggle state to the fresh stream
             localStream.getAudioTracks().forEach(t => { t.enabled = isAudioEnabled; });
             localStream.getVideoTracks().forEach(t => { t.enabled = isVideoEnabled; });
 
@@ -121,12 +133,11 @@ const Homepage = ({ homepageAttributes }) => {
                     </div>
                 )}
 
-
                 {/* Media controls */}
                 <div className="media-controls">
                     <button
                         className={`btn-control ${!isAudioEnabled ? 'disabled' : ''}`}
-                        onClick={() => toggleAudio()} // Pass gainNodeRef
+                        onClick={() => toggleAudio()}
                         title={isAudioEnabled ? "Mute microphone" : "Unmute microphone"}
                     >
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -165,27 +176,17 @@ const Homepage = ({ homepageAttributes }) => {
                         alt="Convo Logo"
                         className="card-logo"
                     />
-                    <button
-                        className="btn btn-primary"
-                        onClick={startMeeting}
-                    >
+                    <button className="btn btn-primary" onClick={startMeeting}>
                         Start a meeting
                     </button>
-                    <button
-                        className="btn btn-primary"
-                        onClick={joinMeeting}
-                    >
+                    <button className="btn btn-primary" onClick={joinMeeting}>
                         Join a meeting
                     </button>
                 </div>
             ) : (
                 <div className="card">
                     {/* Back button */}
-                    <button
-                        className="btn-back"
-                        onClick={goBack}
-                        title="Go back"
-                    >
+                    <button className="btn-back" onClick={goBack} title="Go back">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <line x1="19" y1="12" x2="5" y2="12"></line>
                             <polyline points="12 19 5 12 12 5"></polyline>
@@ -195,31 +196,52 @@ const Homepage = ({ homepageAttributes }) => {
 
                     {command === "Start" ? (
                         <>
+                            {/* Meeting ID card with inline copy actions */}
                             <div className="meeting-id-display">
                                 <span className="meeting-id-label">Meeting ID</span>
                                 <span className="meeting-id-value">{meetingId}</span>
+                                <div className="meeting-id-actions">
+                                    <button
+                                        className={`meeting-id-action-btn ${copied ? 'active' : ''}`}
+                                        onClick={copyMeetingId}
+                                        title="Copy meeting ID"
+                                    >
+                                        {copied ? (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="20 6 9 17 4 12"></polyline>
+                                            </svg>
+                                        ) : (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                            </svg>
+                                        )}
+                                        <span>{copied ? 'Copied' : 'Copy ID'}</span>
+                                    </button>
+
+                                    <div className="meeting-id-actions-divider" />
+
+                                    <button
+                                        className={`meeting-id-action-btn ${copiedLink ? 'active' : ''}`}
+                                        onClick={copyMeetingLink}
+                                        title="Copy meeting link"
+                                    >
+                                        {copiedLink ? (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                <polyline points="20 6 9 17 4 12"></polyline>
+                                            </svg>
+                                        ) : (
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                                            </svg>
+                                        )}
+                                        <span>{copiedLink ? 'Copied' : 'Copy Link'}</span>
+                                    </button>
+                                </div>
                             </div>
-                            <button
-                                className="btn btn-copy"
-                                onClick={copyMeetingId}
-                                title="Copy meeting ID"
-                            >
-                                {copied ? (
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <polyline points="20 6 9 17 4 12"></polyline>
-                                    </svg>
-                                ) : (
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-                                        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-                                    </svg>
-                                )}
-                                <span style={{ marginLeft: '6px' }}>{copied ? 'Copied' : 'Copy'}</span>
-                            </button>
-                            <button
-                                className="btn btn-primary"
-                                onClick={handleJoinOrStart}
-                            >
+
+                            <button className="btn btn-primary" onClick={handleJoinOrStart}>
                                 Start
                             </button>
                         </>
@@ -232,10 +254,7 @@ const Homepage = ({ homepageAttributes }) => {
                                 onChange={(e) => setMeetingId(e.target.value)}
                                 className="meeting-input"
                             />
-                            <button
-                                className="btn btn-primary"
-                                onClick={handleJoinOrStart}
-                            >
+                            <button className="btn btn-primary" onClick={handleJoinOrStart}>
                                 Join
                             </button>
                         </>

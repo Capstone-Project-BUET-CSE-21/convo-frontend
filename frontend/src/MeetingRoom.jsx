@@ -10,6 +10,8 @@ import useMeetingRecording from "./meeting/useMeetingRecording";
 
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
 const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL || 'http://localhost:8081';
+const FRONTEND_URL = 'https://convo-frontend-nine.vercel.app';
+
 const MeetingRoom = ({ meetingRoomAttributes }) => {
   const { command, isAudioEnabledPair, isVideoEnabledPair } = meetingRoomAttributes;
   const { isAudioEnabled, setIsAudioEnabled } = isAudioEnabledPair;
@@ -31,6 +33,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
   const [peers, setPeers] = useState([]);
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const navigate = useNavigate();
 
   const [userId, setUserId] = useState("");
@@ -55,6 +58,16 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("Failed to copy meeting ID:", err);
+    }
+  };
+
+  const copyMeetingLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${FRONTEND_URL}/room/${roomId}`);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy meeting link:", err);
     }
   };
 
@@ -391,7 +404,9 @@ wsRef.current = ws;
       <MeetingHeader
         roomId={roomId}
         copied={copied}
+        copiedLink={copiedLink}
         onCopyMeetingId={copyMeetingId}
+        onCopyMeetingLink={copyMeetingLink}
         participantsCount={peers.length + 1}
       />
 
