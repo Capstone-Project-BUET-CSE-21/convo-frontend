@@ -61,6 +61,7 @@ function encodeWAV(samples, sampleRate) {
   view.setUint16(32, 2, true); view.setUint16(34, 16, true);
   str(36, "data"); view.setUint32(40, samples.length * 2, true);
   let off = 44;
+  const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL || 'http://localhost:8081';
   for (let i = 0; i < samples.length; i++) {
     const s = Math.max(-1, Math.min(1, samples[i]));
     view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
@@ -117,9 +118,9 @@ export default function WatermarkTestPage() {
 
   // ─── Shared: fetch config from backend ──────────────────────────────────────
   async function fetchConfig(sessionId, userId) {
-    const res = await fetch(
-      `/api/watermark/config?sessionId=${encodeURIComponent(sessionId)}&userId=${encodeURIComponent(userId)}`
-    );
+  const res = await fetch(
+    `${WATERMARK_URL}/api/watermark/config?sessionId=${encodeURIComponent(sessionId)}&userId=${encodeURIComponent(userId)}`
+  );
     if (!res.ok) throw new Error(`Backend returned ${res.status}`);
     const config = await res.json();
     const { seed, alpha, frameSize } = config;
@@ -391,11 +392,10 @@ export default function WatermarkTestPage() {
       formData.append("audio", backendFile);
       formData.append("sessionId", backendSessionId.trim());
 
-      const res = await fetch(`/api/watermark/detect`, {
-        method: "POST",
-        body: formData,
-      });
-
+     const res = await fetch(`${WATERMARK_URL}/api/watermark/detect`, {
+  method: "POST",
+  body: formData,
+});
       const json = await res.json();
 
       if (!res.ok) {

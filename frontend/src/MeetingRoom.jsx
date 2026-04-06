@@ -9,6 +9,7 @@ import MeetingControls from "./meeting/MeetingControls";
 import useMeetingRecording from "./meeting/useMeetingRecording";
 
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL || 'http://localhost:8081';
 const MeetingRoom = ({ meetingRoomAttributes }) => {
   const { command, isAudioEnabledPair, isVideoEnabledPair } = meetingRoomAttributes;
   const { isAudioEnabled, setIsAudioEnabled } = isAudioEnabledPair;
@@ -196,7 +197,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
   const fetchWatermarkConfig = async (userId) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/api/watermark/config?sessionId=${roomId}&userId=${userId}`, {
+      const res = await fetch(`${WATERMARK_URL}/api/watermark/config?sessionId=${roomId}&userId=${userId}`, {
         method: "GET",
         headers: { 
           'Content-Type': 'application/json',
