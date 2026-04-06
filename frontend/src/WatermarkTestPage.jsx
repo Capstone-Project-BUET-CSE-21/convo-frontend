@@ -2,7 +2,7 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 
 // ─── Self-contained helpers — same logic as audio-worklet-processor.js ────────
-
+const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL || 'http://localhost:8081';
 function mulberry32(seed) {
   let s = seed >>> 0;
   return () => {
@@ -61,7 +61,7 @@ function encodeWAV(samples, sampleRate) {
   view.setUint16(32, 2, true); view.setUint16(34, 16, true);
   str(36, "data"); view.setUint32(40, samples.length * 2, true);
   let off = 44;
-  const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL || 'http://localhost:8081';
+  
   for (let i = 0; i < samples.length; i++) {
     const s = Math.max(-1, Math.min(1, samples[i]));
     view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
