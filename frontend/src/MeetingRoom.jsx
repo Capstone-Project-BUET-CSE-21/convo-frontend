@@ -199,10 +199,12 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
   const fetchWatermarkConfig = async (userId) => {
     try {
+      console.log("Fetching watermark config for user:", userId);
       const res = await fetch(`${WATERMARK_URL}/api/watermark/config?sessionId=${roomId}&userId=${userId}`, {
         method: "GET"
       });
       const data = await res.json();
+      console.log("Received watermark config:", data);
       return data;
     } catch (err) {
       console.error("Failed to fetch watermark config:", err);
@@ -250,11 +252,13 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
   const fetchServerCredentials = async () => {
     try {
+      console.log("Fetching server credentials...");
       const response = await fetch(`${BACKEND_URL}/api/backend/credentials`, {
         method: "GET"
       });
       const data = await response.json();
       serverRef.current = data.credentials;
+      console.log("Received server credentials:", serverRef.current);
     } catch (err) {
       console.error("Failed to fetch server credentials:", err);
     }
