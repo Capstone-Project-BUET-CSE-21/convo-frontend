@@ -50,17 +50,8 @@ jobs:
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         runs-on: ubuntu-latest
         steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
-
-            - name: Deploy to Vercel
-              uses: amondnet/vercel-action@v42.2.0
-              with:
-                  vercel-token: ${{ secrets.VERCEL_TOKEN_MAIN }}
-                  vercel-org-id: ${{ secrets.VERCEL_TEAM_ID_MAIN }}
-                  vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_MAIN }}
-                  target: production
-                  working-directory: ./frontend
+            - name: Trigger Vercel deploy hook
+              run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_MAIN }}"
 
     deploy-production:
         name: Deploy Production Branch to Vercel
@@ -69,14 +60,5 @@ jobs:
         runs-on: ubuntu-latest
         environment: production
         steps:
-            - name: Checkout repository
-              uses: actions/checkout@v4
-
-            - name: Deploy to Vercel
-              uses: amondnet/vercel-action@v42.2.0
-              with:
-                  vercel-token: ${{ secrets.VERCEL_TOKEN_PROD }}
-                  vercel-org-id: ${{ secrets.VERCEL_TEAM_ID_PROD }}
-                  vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_PROD }}
-                  target: production
-                  working-directory: ./frontend
+            - name: Trigger Vercel deploy hook
+              run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_PROD }}"
