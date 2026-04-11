@@ -2,11 +2,11 @@ import { useRef, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import PropTypes from 'prop-types';
 import "./MeetingRoom.css";
-import createProcessedStream from "./audio/audioWorkletSetup";
-import MeetingHeader from "./meeting/MeetingHeader";
-import MeetingVideos from "./meeting/MeetingVideos";
-import MeetingControls from "./meeting/MeetingControls";
-import useMeetingRecording from "./meeting/useMeetingRecording";
+import createProcessedStream from "../audio/audioWorkletSetup";
+import MeetingHeader from "../meeting/MeetingHeader";
+import MeetingVideos from "../meeting/MeetingVideos";
+import MeetingControls from "../meeting/MeetingControls";
+import useMeetingRecording from "../meeting/useMeetingRecording";
 
 const WS_URL = import.meta.env.VITE_WS_BASE_URL;
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;

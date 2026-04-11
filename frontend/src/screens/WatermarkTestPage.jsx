@@ -199,7 +199,7 @@ export default function WatermarkTestPage() {
       });
 
       const { default: createProcessedStream } =
-        await import("./audio/audioWorkletSetup.js");
+        await import("../audio/audioWorkletSetup.js");
 
       // Pass the real seed, alpha, frameSize into the worklet
       const result = await Promise.race([
