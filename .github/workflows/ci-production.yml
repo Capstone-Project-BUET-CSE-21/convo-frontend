@@ -1,23 +1,24 @@
-name: Frontend CI
+name: Frontend CI - Production
 
 on:
     pull_request:
-        paths:
-            - "frontend/**"
-            - ".github/workflows/frontend-ci.yml"
-    push:
         branches:
-            - main
             - production
         paths:
             - "frontend/**"
-            - ".github/workflows/frontend-ci.yml"
+            - ".github/workflows/ci-production.yml"
+    push:
+        branches:
+            - production
+        paths:
+            - "frontend/**"
+            - ".github/workflows/ci-production.yml"
 
 permissions:
     contents: read
 
 concurrency:
-    group: frontend-deploy
+    group: frontend-deploy-production
     cancel-in-progress: true
 
 jobs:
@@ -44,17 +45,8 @@ jobs:
             - name: Run frontend checks
               run: npm test
 
-    deploy-main:
-        name: Deploy Main to Vercel
-        needs: test
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        runs-on: ubuntu-latest
-        steps:
-            - name: Trigger Vercel deploy hook
-              run: curl -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_MAIN }}"
-
     deploy-production:
-        name: Deploy Production Branch to Vercel
+        name: Deploy Production to Vercel
         needs: test
         if: github.event_name == 'push' && github.ref == 'refs/heads/production'
         runs-on: ubuntu-latest
