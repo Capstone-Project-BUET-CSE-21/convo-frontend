@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import './App.css'
-import MeetingRoom from './MeetingRoom'
-import Homepage from './Homepage'
-import WatermarkTestPage from './WatermarkTestPage'
+import MeetingRoom from './screens/MeetingRoom'
+import Homepage from './screens/Homepage'
+import WatermarkTestPage from './screens/WatermarkTestPage'
 
 const App = () => {
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
