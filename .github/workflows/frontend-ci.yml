@@ -60,7 +60,7 @@ jobs:
                   vercel-org-id: ${{ secrets.VERCEL_TEAM_ID_MAIN }}
                   vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_MAIN }}
                   target: production
-                  working-directory: frontend
+                  working-directory: ./frontend
 
     deploy-production:
         name: Deploy Production Branch to Vercel
@@ -79,4 +79,4 @@ jobs:
                   vercel-org-id: ${{ secrets.VERCEL_TEAM_ID_PROD }}
                   vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID_PROD }}
                   target: production
-                  working-directory: frontend
+                  working-directory: ./frontend
