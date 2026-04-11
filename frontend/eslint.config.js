@@ -1,3 +1,4 @@
+import react from 'eslint-plugin-react'  // ← this is missing
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
@@ -10,6 +11,8 @@ export default defineConfig([
     files: ['**/*.{js,jsx}'],
     extends: [
       js.configs.recommended,
+      react.configs.flat.recommended,       // ← add this
+      react.configs.flat['jsx-runtime'], // ← add this
       reactHooks.configs.flat.recommended,
       reactRefresh.configs.vite,
     ],
@@ -23,7 +26,8 @@ export default defineConfig([
       },
     },
     rules: {
-      'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
-    },
+      'no-unused-vars': ['error', { varsIgnorePattern: '^_' }],
+      'no-undef': 'error',
+    }
   },
 ])
