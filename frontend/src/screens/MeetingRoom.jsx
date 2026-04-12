@@ -12,6 +12,7 @@ import { getAuthToken } from "../auth/authSession";
 const WS_URL = import.meta.env.VITE_WS_BASE_URL;
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
 const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL;
+const WATERMARK_TIMEOUT_MS = 8000;
 
 const MeetingRoom = ({ meetingRoomAttributes }) => {
   const { authUser, command, isAudioEnabledPair, isVideoEnabledPair } = meetingRoomAttributes;
