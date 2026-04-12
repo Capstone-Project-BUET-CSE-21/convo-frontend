@@ -52,8 +52,11 @@ jobs:
         runs-on: ubuntu-latest
         environment: production
         steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
             - name: Trigger Vercel deploy hook
-              run: npx vercel --prod --token=${{ secrets.VERCEL_TOKEN_PROD }}
+              run: npx vercel --prod --token=${{ secrets.VERCEL_TOKEN_PROD }} --cwd frontend
               env:
                   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_PROD }}
                   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID_PROD }}
