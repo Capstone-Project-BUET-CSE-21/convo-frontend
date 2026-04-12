@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import "./Homepage.css"; // Import your CSS file
+import { AuthSidebar } from "../components/SharedComponents";
 
 const Homepage = ({ homepageAttributes }) => {
-    const { commandPair, isAudioEnabledPair, isVideoEnabledPair } = homepageAttributes;
+    const location = useLocation();
+    const { authUser, commandPair, isAudioEnabledPair, isVideoEnabledPair, handleLogout } = homepageAttributes;
     const { command, setCommand } = commandPair;
     const { isAudioEnabled, setIsAudioEnabled } = isAudioEnabledPair;
     const { isVideoEnabled, setIsVideoEnabled } = isVideoEnabledPair;
@@ -51,7 +53,7 @@ const Homepage = ({ homepageAttributes }) => {
 
     const handleJoinOrStart = () => {
         if (meetingId.trim()) {
-            navigate(`room/${meetingId}`);
+            navigate(`/room/${meetingId}`);
         }
     };
 
@@ -107,6 +109,14 @@ const Homepage = ({ homepageAttributes }) => {
     }, []);
 
     return (
+        <>
+        {authUser && 
+            <AuthSidebar
+                user={authUser}
+                currentPath={location.pathname}
+                onNavigateHome={() => navigate('/home')}
+                onLogout={handleLogout}
+            />}
         <div className="homepage-container">
             <div className="video-container">
                 <video
@@ -243,11 +253,13 @@ const Homepage = ({ homepageAttributes }) => {
                 </div>
             )}
         </div>
+        </>
     );
 }
 
 Homepage.propTypes = {
     homepageAttributes: PropTypes.shape({
+        authUser: PropTypes.object.isRequired,
         commandPair: PropTypes.shape({
             command: PropTypes.string.isRequired,
             setCommand: PropTypes.func.isRequired
@@ -259,7 +271,8 @@ Homepage.propTypes = {
         isVideoEnabledPair: PropTypes.shape({
             isVideoEnabled: PropTypes.bool.isRequired,
             setIsVideoEnabled: PropTypes.func.isRequired
-        }).isRequired
+        }).isRequired,
+        handleLogout: PropTypes.func.isRequired
     }).isRequired
 };
 

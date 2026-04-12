@@ -1,5 +1,6 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import "./WatermarkTestPage.css";
 
 // ─── Self-contained helpers — same logic as audio-worklet-processor.js ────────
 const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL;
@@ -61,7 +62,7 @@ function encodeWAV(samples, sampleRate) {
   view.setUint16(32, 2, true); view.setUint16(34, 16, true);
   str(36, "data"); view.setUint32(40, samples.length * 2, true);
   let off = 44;
-  
+
   for (let i = 0; i < samples.length; i++) {
     const s = Math.max(-1, Math.min(1, samples[i]));
     view.setInt16(off, s < 0 ? s * 0x8000 : s * 0x7fff, true);
@@ -117,10 +118,10 @@ export default function WatermarkTestPage() {
   const backendFileRef = useRef(null);
 
   // ─── Shared: fetch config from backend ──────────────────────────────────────
-  async function fetchConfig(sessionId, userId) {
-  const res = await fetch(
-    `${WATERMARK_URL}/api/watermark/config?sessionId=${encodeURIComponent(sessionId)}&userId=${encodeURIComponent(userId)}`
-  );
+  async function fetchConfig(userId) {
+    const res = await fetch(
+      `${WATERMARK_URL}/api/watermark/config?userId=${encodeURIComponent(userId)}`
+    );
     if (!res.ok) throw new Error(`Backend returned ${res.status}`);
     const config = await res.json();
     const { seed, alpha, frameSize } = config;
@@ -191,9 +192,9 @@ export default function WatermarkTestPage() {
     try {
       micStream = await navigator.mediaDevices.getUserMedia({
         audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
         },
         video: false,
       });
@@ -392,10 +393,10 @@ export default function WatermarkTestPage() {
       formData.append("audio", backendFile);
       formData.append("sessionId", backendSessionId.trim());
 
-     const res = await fetch(`${WATERMARK_URL}/api/watermark/detect`, {
-  method: "POST",
-  body: formData,
-});
+      const res = await fetch(`${WATERMARK_URL}/api/watermark/detect`, {
+        method: "POST",
+        body: formData,
+      });
       const json = await res.json();
 
       if (!res.ok) {
@@ -412,27 +413,27 @@ export default function WatermarkTestPage() {
 
   // ─────────────────────────────────────────────────────────────────────────────
   return (
-    <div style={{ maxWidth: 700, margin: "0 auto", padding: "24px 16px", fontFamily: "monospace" }}>
-      <button onClick={() => navigate("/")} style={{ marginBottom: 24, cursor: "pointer" }}>
+    <div className="watermark-container">
+      <button onClick={() => navigate("/")} className="watermark-back-btn">
         ← Back
       </button>
 
-      <h1 style={{ fontSize: 22, marginBottom: 8 }}>Watermark Test</h1>
-      <p style={{ color: "#888", marginBottom: 32, fontSize: 13 }}>
+      <h1 className="watermark-title">Watermark Test</h1>
+      <p className="watermark-subtitle">
         Tests 2–5 use live config from the backend. Test 1 uses hardcoded defaults (seed={DEFAULT_SEED}, α={DEFAULT_ALPHA}, frame={DEFAULT_FRAME}).
       </p>
 
       {/* ── TEST 1 ── */}
-      <section style={sectionStyle}>
-        <h2 style={headingStyle}>Test 1 — Algorithm check (no mic, no backend)</h2>
-        <p style={descStyle}>
+      <section className="watermark-section">
+        <h2 className="watermark-heading">Test 1 — Algorithm check (no mic, no backend)</h2>
+        <p className="watermark-desc">
           Embeds a watermark into a silence frame using hardcoded defaults and checks
           the correlation. Verifies the core PN math is correct — no microphone or
           backend needed.
         </p>
-        <button style={btnStyle} onClick={runAlgoTest}>▶ Run</button>
+        <button className="watermark-btn" onClick={runAlgoTest}>▶ Run</button>
         {algoResult && (
-          <div style={resultBox(algoResult.passed)}>
+          <div className={`watermark-result-box ${algoResult.passed ? 'passed' : 'failed'}`}>
             <div>{algoResult.passed ? "✅ PASSED" : "❌ FAILED"}</div>
             <div>Orig corr:  {algoResult.origCorr}  (want ≈ 0)</div>
             <div>WM corr:    {algoResult.wmCorr}  (want &gt; {algoResult.threshold})</div>
@@ -443,41 +444,41 @@ export default function WatermarkTestPage() {
       </section>
 
       {/* ── TEST 2 ── */}
-      <section style={sectionStyle}>
-        <h2 style={headingStyle}>Test 2 — Live mic recording with real config</h2>
-        <p style={descStyle}>
+      <section className="watermark-section">
+        <h2 className="watermark-heading">Test 2 — Live mic recording with real config</h2>
+        <p className="watermark-desc">
           Fetches the real seed/alpha/frameSize for this user from the backend, then
           records 5 seconds through the watermark worklet using those values. The
           downloaded WAV will be detectable by Test 5 with the same session ID.
         </p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+        <div className="watermark-input-group">
           <input
             type="text"
             placeholder="Session ID (e.g. abc)"
             value={recSessionId}
             onChange={(e) => setRecSessionId(e.target.value)}
-            style={inputStyle}
+            className="watermark-input"
           />
           <input
             type="text"
             placeholder="User ID (e.g. debashri)"
             value={recUserId}
             onChange={(e) => setRecUserId(e.target.value)}
-            style={inputStyle}
+            className="watermark-input"
           />
         </div>
 
         {recError && (
-          <div style={{ ...resultBox(false), marginBottom: 12 }}>
-            <div style={{ fontWeight: "bold", marginBottom: 4 }}>❌ Error</div>
-            <div style={{ color: "#f44336" }}>{recError}</div>
+          <div className="watermark-error">
+            <div className="watermark-error-title">❌ Error</div>
+            <div className="watermark-error-msg">{recError}</div>
           </div>
         )}
 
         {recStatus === "idle" && (
           <button
-            style={btnStyle}
+            className="watermark-btn"
             onClick={startRecording}
             disabled={!recSessionId.trim() || !recUserId.trim()}
           >
@@ -486,13 +487,13 @@ export default function WatermarkTestPage() {
         )}
 
         {recStatus === "fetching" && (
-          <div style={{ marginTop: 12, color: "#888" }}>
+          <div className="watermark-status">
             Fetching config for {recUserId} / {recSessionId}…
           </div>
         )}
 
         {recStatus === "recording" && (
-          <div style={{ marginTop: 12, color: "#ff9800" }}>
+          <div className="watermark-status recording">
             ⏺ Recording… {countdown}s remaining
             {recConfig && (
               <span style={{ color: "#888", marginLeft: 12 }}>
@@ -505,33 +506,34 @@ export default function WatermarkTestPage() {
         {recStatus === "done" && (
           <>
             {recConfig && (
-              <div style={{ ...resultBox(true), marginBottom: 12 }}>
+              <div className="watermark-result-box passed">
                 <div>Config used — seed: <strong>{recConfig.seed}</strong> · α: {recConfig.alpha} · frameSize: {recConfig.frameSize}</div>
               </div>
             )}
             <button
-              style={{ ...btnStyle, background: "#555", marginTop: 8 }}
+              className="watermark-btn"
               onClick={startRecording}
+              style={{ marginTop: 0.5 }}
             >
               ↺ Record again
             </button>
-            <div style={{ marginTop: 16, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <div>
-                <div style={{ fontSize: 12, marginBottom: 4, color: "#aaa" }}>Original</div>
+            <div className="watermark-audio-grid">
+              <div className="watermark-audio-box">
+                <div className="watermark-audio-label">Original</div>
                 {origUrl && <audio controls src={origUrl} style={{ width: "100%" }} />}
                 {origUrl && (
-                  <a href={origUrl} download="original.webm" style={linkStyle}>⬇ original.webm</a>
+                  <a href={origUrl} download="original.webm" className="watermark-link">⬇ original.webm</a>
                 )}
               </div>
-              <div>
-                <div style={{ fontSize: 12, marginBottom: 4, color: "#aaa" }}>Watermarked (WAV)</div>
+              <div className="watermark-audio-box">
+                <div className="watermark-audio-label">Watermarked (WAV)</div>
                 {wmUrl && <audio controls src={wmUrl} style={{ width: "100%" }} />}
                 {wmUrl && (
-                  <a href={wmUrl} download="watermarked.wav" style={linkStyle}>⬇ watermarked.wav</a>
+                  <a href={wmUrl} download="watermarked.wav" className="watermark-link">⬇ watermarked.wav</a>
                 )}
               </div>
             </div>
-            <p style={{ fontSize: 12, color: "#888", marginTop: 8 }}>
+            <p className="watermark-info">
               Both should sound identical. Upload watermarked.wav to Test 3 or Test 5.
             </p>
           </>
@@ -539,9 +541,9 @@ export default function WatermarkTestPage() {
       </section>
 
       {/* ── TEST 3 ── */}
-      <section style={sectionStyle}>
-        <h2 style={headingStyle}>Test 3 — Frontend detection on recorded file</h2>
-        <p style={descStyle}>
+      <section className="watermark-section">
+        <h2 className="watermark-heading">Test 3 — Frontend detection on recorded file</h2>
+        <p className="watermark-desc">
           Upload a WAV recorded in Test 2. Detection runs in the browser using the
           same config that was fetched during recording. If no recording has been done
           yet this session, defaults are used (and a warning is shown).
@@ -553,22 +555,22 @@ export default function WatermarkTestPage() {
           style={{ display: "none" }}
           onChange={(e) => { if (e.target.files[0]) analyzeFile(e.target.files[0]); }}
         />
-        <button style={btnStyle} onClick={() => det3FileRef.current?.click()}>
+        <button className="watermark-btn" onClick={() => det3FileRef.current?.click()}>
           📂 Upload audio file
         </button>
 
         {detection?.status === "analyzing" && (
-          <div style={{ marginTop: 12, color: "#888" }}>Analyzing…</div>
+          <div className="watermark-status">Analyzing…</div>
         )}
         {detection?.status === "done" && (
-          <div style={resultBox(detection.passed)}>
+          <div className={`watermark-result-box ${detection.passed ? 'passed' : 'failed'}`}>
             {detection.usedFallback && (
-              <div style={{ color: "#ff9800", marginBottom: 8 }}>
+              <div className="watermark-warning">
                 ⚠️ No recording config found — using hardcoded defaults (seed={DEFAULT_SEED}).
                 Run Test 2 first for an accurate result.
               </div>
             )}
-            <div style={{ fontWeight: "bold", marginBottom: 8 }}>
+            <div style={{ fontWeight: "bold", marginBottom: 0.5 }}>
               {detection.passed ? "✅ WATERMARK DETECTED" : "❌ NOT DETECTED"}{" "}
               ({detection.isWav ? "lossless WAV" : "compressed"})
             </div>
@@ -578,7 +580,7 @@ export default function WatermarkTestPage() {
             <div>Mean correlation: {detection.mean} (expected: {detection.expected})</div>
             <div>Threshold used:   {detection.threshold}</div>
             {!detection.passed && (
-              <div style={{ marginTop: 8, color: "#ff9800" }}>
+              <div className="watermark-info">
                 💡 If mean correlation is near 0, the worklet may not be embedding.
                 Check audio-worklet-processor.js and confirm the seed matches.
               </div>
@@ -588,33 +590,33 @@ export default function WatermarkTestPage() {
       </section>
 
       {/* ── TEST 4 ── */}
-      <section style={sectionStyle}>
-        <h2 style={headingStyle}>Test 4 — Dynamic config from backend</h2>
-        <p style={descStyle}>
+      <section className="watermark-section">
+        <h2 className="watermark-heading">Test 4 — Dynamic config from backend</h2>
+        <p className="watermark-desc">
           Fetches the watermark config from the backend for a given session and user,
           then verifies the returned seed, alpha, and frameSize produce a detectable
           watermark on a synthetic silence frame.
         </p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+        <div className="watermark-input-group">
           <input
             type="text"
             placeholder="Session ID (e.g. abc)"
             value={configSessionId}
             onChange={(e) => setConfigSessionId(e.target.value)}
-            style={inputStyle}
+            className="watermark-input"
           />
           <input
             type="text"
             placeholder="User ID (e.g. debashri)"
             value={configUserId}
             onChange={(e) => setConfigUserId(e.target.value)}
-            style={inputStyle}
+            className="watermark-input"
           />
         </div>
 
         <button
-          style={btnStyle}
+          className="watermark-btn"
           onClick={runConfigTest}
           disabled={configRunning || !configSessionId.trim() || !configUserId.trim()}
         >
@@ -622,15 +624,15 @@ export default function WatermarkTestPage() {
         </button>
 
         {configResult && (
-          <div style={resultBox(configResult.passed)}>
+          <div className={`watermark-result-box ${configResult.passed ? 'passed' : 'failed'}`}>
             {configResult.error ? (
               <>
-                <div style={{ fontWeight: "bold", marginBottom: 8 }}>❌ FAILED</div>
+                <div className="watermark-result-title">❌ FAILED</div>
                 <div style={{ color: "#f44336" }}>Error: {configResult.error}</div>
               </>
             ) : (
               <>
-                <div style={{ fontWeight: "bold", marginBottom: 8 }}>
+                <div className="watermark-result-title">
                   {configResult.passed ? "✅ PASSED" : "❌ FAILED"}
                 </div>
                 <div>
@@ -652,9 +654,9 @@ export default function WatermarkTestPage() {
       </section>
 
       {/* ── TEST 5 ── */}
-      <section style={sectionStyle}>
-        <h2 style={headingStyle}>Test 5 — Backend detection API</h2>
-        <p style={descStyle}>
+      <section className="watermark-section">
+        <h2 className="watermark-heading">Test 5 — Backend detection API</h2>
+        <p className="watermark-desc">
           Upload a WAV file and enter the session ID to call{" "}
           <code style={{ color: "#60a5fa" }}>POST /api/watermark/detect</code>.
           The session must have users registered via{" "}
@@ -662,15 +664,15 @@ export default function WatermarkTestPage() {
           Use the same session ID you recorded with in Test 2.
         </p>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 14 }}>
+        <div className="watermark-input-group">
           <input
             type="text"
             placeholder="Session ID (e.g. abc)"
             value={backendSessionId}
             onChange={(e) => setBackendSessionId(e.target.value)}
-            style={inputStyle}
+            className="watermark-input"
           />
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
             <input
               ref={backendFileRef}
               type="file"
@@ -678,15 +680,16 @@ export default function WatermarkTestPage() {
               style={{ display: "none" }}
               onChange={(e) => setBackendFile(e.target.files[0] || null)}
             />
-            <button style={btnStyle} onClick={() => backendFileRef.current?.click()}>
+            <button className="watermark-btn" onClick={() => backendFileRef.current?.click()} style={{ flex: "0 1 auto" }}>
               📂 Choose audio file
             </button>
             {backendFile && (
-              <span style={{ fontSize: 12, color: "#aaa" }}>{backendFile.name}</span>
+              <span style={{ fontSize: 12, color: "#aaa", wordBreak: "break-word" }}>{backendFile.name}</span>
             )}
           </div>
           <button
-            style={{ ...btnStyle, background: backendLoading ? "#555" : "#16a34a" }}
+            className="watermark-btn"
+            style={{ background: backendLoading ? "#555" : "#16a34a" }}
             onClick={runBackendDetection}
             disabled={backendLoading || !backendFile || !backendSessionId.trim()}
           >
@@ -695,15 +698,15 @@ export default function WatermarkTestPage() {
         </div>
 
         {backendResult && (
-          <div style={resultBox(backendResult.watermarkDetected)}>
+          <div className={`watermark-result-box ${backendResult.watermarkDetected ? 'passed' : 'failed'}`}>
             {backendResult.error ? (
               <>
-                <div style={{ fontWeight: "bold", marginBottom: 6 }}>❌ Request failed</div>
+                <div className="watermark-result-title">❌ Request failed</div>
                 <div style={{ color: "#f44336" }}>{backendResult.error}</div>
               </>
             ) : (
               <>
-                <div style={{ fontWeight: "bold", marginBottom: 8, fontSize: 15 }}>
+                <div className="watermark-result-title" style={{ fontSize: 15 }}>
                   {backendResult.watermarkDetected ? "✅ WATERMARK DETECTED" : "❌ NO WATERMARK DETECTED"}
                 </div>
                 {backendResult.detectedUser && (
@@ -716,9 +719,9 @@ export default function WatermarkTestPage() {
                 {backendResult.allUserScores && Object.keys(backendResult.allUserScores).length > 0 && (
                   <div style={{ marginTop: 10 }}>
                     <div style={{ color: "#aaa", marginBottom: 4, fontSize: 12 }}>All user scores:</div>
-                    <div style={{ background: "#0d0d0d", borderRadius: 4, padding: "8px 12px", fontSize: 12 }}>
+                    <div style={{ background: "#0d0d0d", borderRadius: 4, padding: "8px 12px", fontSize: 12, overflowX: "auto" }}>
                       {Object.entries(backendResult.allUserScores).map(([uid, score]) => (
-                        <div key={uid} style={{ display: "flex", justifyContent: "space-between", gap: 24 }}>
+                        <div key={uid} style={{ display: "flex", justifyContent: "space-between", gap: 24, wordBreak: "break-word" }}>
                           <span style={{ color: uid === backendResult.detectedUser ? "#4caf50" : "#aaa" }}>
                             {uid === backendResult.detectedUser ? "▶ " : "  "}{uid}
                           </span>
@@ -738,62 +741,4 @@ export default function WatermarkTestPage() {
   );
 }
 
-// ── Styles ────────────────────────────────────────────────────────────────────
-const sectionStyle = {
-  background: "#1a1a1a",
-  border: "1px solid #333",
-  borderRadius: 8,
-  padding: 20,
-  marginBottom: 20,
-};
-
-const headingStyle = {
-  fontSize: 16,
-  marginTop: 0,
-  marginBottom: 6,
-};
-
-const descStyle = {
-  fontSize: 13,
-  color: "#888",
-  marginBottom: 14,
-  marginTop: 0,
-};
-
-const btnStyle = {
-  background: "#2563eb",
-  color: "#fff",
-  border: "none",
-  borderRadius: 6,
-  padding: "8px 18px",
-  cursor: "pointer",
-  fontSize: 14,
-};
-
-const inputStyle = {
-  background: "#111",
-  border: "1px solid #444",
-  borderRadius: 6,
-  padding: "8px 12px",
-  color: "#fff",
-  fontSize: 13,
-  fontFamily: "monospace",
-};
-
-const linkStyle = {
-  display: "block",
-  fontSize: 12,
-  color: "#60a5fa",
-  marginTop: 6,
-  textDecoration: "none",
-};
-
-const resultBox = (passed) => ({
-  marginTop: 14,
-  padding: 14,
-  borderRadius: 6,
-  background: passed ? "rgba(76,175,80,0.1)" : "rgba(244,67,54,0.1)",
-  border: `1px solid ${passed ? "#4caf50" : "#f44336"}`,
-  fontSize: 13,
-  lineHeight: 1.8,
-});
+// ── Styles are now in WatermarkTestPage.css for responsive design ────────────

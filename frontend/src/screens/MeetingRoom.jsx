@@ -7,22 +7,36 @@ import MeetingHeader from "../meeting/MeetingHeader";
 import MeetingVideos from "../meeting/MeetingVideos";
 import MeetingControls from "../meeting/MeetingControls";
 import useMeetingRecording from "../meeting/useMeetingRecording";
+import { getAuthToken } from "../auth/authSession";
 
 const WS_URL = import.meta.env.VITE_WS_BASE_URL;
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
 const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL;
 
 const MeetingRoom = ({ meetingRoomAttributes }) => {
-  const { command, isAudioEnabledPair, isVideoEnabledPair } = meetingRoomAttributes;
+  const { authUser, command, isAudioEnabledPair, isVideoEnabledPair } = meetingRoomAttributes;
   const { isAudioEnabled, setIsAudioEnabled } = isAudioEnabledPair;
   const { isVideoEnabled, setIsVideoEnabled } = isVideoEnabledPair;
 
   const params = useParams();
   const roomId = params.roomId;
+  const userId = authUser.id;
+  const roomIdRef = useRef(roomId);
+  const commandRef = useRef(command);
+  const isAudioEnabledRef = useRef(isAudioEnabled);
+  const isVideoEnabledRef = useRef(isVideoEnabled);
+  const navigateRef = useRef(null);
+  const stopRecordingRef = useRef(null);
+
+  roomIdRef.current = roomId;
+  commandRef.current = command;
+  isAudioEnabledRef.current = isAudioEnabled;
+  isVideoEnabledRef.current = isVideoEnabled;
 
   const serverRef = useRef(null);
   const wsRef = useRef(null);
   const pcRef = useRef(new Map());
+  const [peerNames, setPeerNames] = useState(new Map());
 
   const rawStreamRef = useRef(null);
   const localVideoRef = useRef(null);
@@ -30,12 +44,13 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   const gainNodeRef = useRef(null);
   const watermarkAudioContextRef = useRef(null);
   const watermarkWorkletNodeRef = useRef(null);
+  const watermarkReadyPromiseRef = useRef(Promise.resolve());
+  const watermarkReadyResolveRef = useRef(null);
 
   const [peers, setPeers] = useState([]);
   const [copied, setCopied] = useState(false);
   const navigate = useNavigate();
 
-  const [userId, setUserId] = useState("");
   const {
     isRecording,
     hasRecording,
@@ -48,6 +63,9 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     watermarkAudioContextRef,
     watermarkWorkletNodeRef,
   });
+
+  navigateRef.current = navigate;
+  stopRecordingRef.current = stopRecording;
 
 
   const copyMeetingId = async () => {
@@ -114,7 +132,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     return pc;
   };
 
-  const handleOffer = async (peerId, offer) => {
+  const handleOffer = async (peerId, peerName, offer) => {
     console.log("Received offer from:", peerId);
     try {
       const pc = await createPeerConnection(peerId);
@@ -122,8 +140,11 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
 
+      peerNames.set(peerId, peerName);
+      setPeerNames(new Map(peerNames));
+
       wsRef.current.send(JSON.stringify({
-        type: "answer", roomId: roomId, to: peerId, payload: answer
+        type: "answer", roomId: roomId, to: peerId, payload: { answer, name: authUser.displayName }
       }));
       console.log("Sent answer to:", peerId);
     } catch (err) {
@@ -138,7 +159,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       await pc.setLocalDescription(offer);
 
       wsRef.current.send(JSON.stringify({
-        type: "offer", roomId: roomId, to: peerId, payload: offer
+        type: "offer", roomId: roomId, to: peerId, payload: { offer, name: authUser.displayName }
       }));
       console.log("Sent offer to new peer:", peerId);
     } catch (err) {
@@ -173,7 +194,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
     setIsAudioEnabled(true);
     setIsVideoEnabled(true);
-    navigate("/");
+    navigate("/home");
     console.log("Left room: " + roomId);
   };
 
@@ -197,12 +218,31 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     setIsVideoEnabled(next);
   };
 
-  const fetchWatermarkConfig = async (userId) => {
+  const makeMeetingEntry = async () => {
+    const token = getAuthToken();
+    const response = await fetch(`${BACKEND_URL}/api/backend/meeting-entry`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ command, roomId }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Meeting entry request failed: ${response.status}`);
+    }
+  };
+
+  const fetchWatermarkConfig = async () => {
     try {
-      console.log("Fetching watermark config for user:", userId);
-      const res = await fetch(`${WATERMARK_URL}/api/watermark/config?sessionId=${roomId}&userId=${userId}`, {
+      console.log("Fetching watermark config for roomId/userId:", roomId, userId);
+      const res = await fetch(`${WATERMARK_URL}/api/watermark/config?roomId=${encodeURIComponent(roomId)}&userId=${encodeURIComponent(userId)}`, {
         method: "GET"
       });
+      if (!res.ok) {
+        throw new Error(`Watermark config request failed: ${res.status}`);
+      }
       const data = await res.json();
       console.log("Received watermark config:", data);
       return data;
@@ -212,9 +252,9 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     }
   };
 
-  const applyWatermark = async (userId) => {
+  const applyWatermark = async () => {
     try {
-      const config = await fetchWatermarkConfig(userId);
+      const config = await fetchWatermarkConfig();
 
       const result = await Promise.race([
         createProcessedStream(rawStreamRef.current, config),
@@ -245,17 +285,29 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       // Apply current toggle state to processed stream
       if (audioTrack) audioTrack.enabled = isAudioEnabled;
       if (videoTrack) videoTrack.enabled = isVideoEnabled;
+
+      watermarkReadyResolveRef.current?.();
+      watermarkReadyResolveRef.current = null;
     } catch (err) {
       console.error("Error applying watermark:", err);
+      watermarkReadyResolveRef.current?.();
+      watermarkReadyResolveRef.current = null;
     }
   };
 
   const fetchServerCredentials = async () => {
     try {
       console.log("Fetching server credentials...");
+      const token = getAuthToken();
       const response = await fetch(`${BACKEND_URL}/api/backend/credentials`, {
-        method: "GET"
+        method: "GET",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
+
+      if (!response.ok) {
+        throw new Error(`Credentials request failed: ${response.status}`);
+      }
+
       const data = await response.json();
       serverRef.current = data.credentials;
       console.log("Received server credentials:", serverRef.current);
@@ -269,20 +321,23 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
     const initialize = async () => {
       // Both must be ready before WebSocket opens
+      watermarkReadyPromiseRef.current = new Promise((resolve) => {
+        watermarkReadyResolveRef.current = resolve;
+      });
+
       const [rawStream] = await Promise.all([
         navigator.mediaDevices.getUserMedia({
           video: true,
           audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
           },
         }),
-        fetchServerCredentials()
+        fetchServerCredentials(),
+        makeMeetingEntry()
       ]);
 
-      // Apply persisted toggle state immediately to avoid a brief preview flash
-      // (and accidental media send) before watermark processing finishes.
       rawStream.getAudioTracks().forEach((track) => {
         track.enabled = isAudioEnabled;
       });
@@ -293,7 +348,13 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       rawStreamRef.current = rawStream;
       if (localVideoRef.current) localVideoRef.current.srcObject = rawStream;
 
-      const ws = new WebSocket(`${WS_URL}/ws`);
+      applyWatermark();
+
+      const token = getAuthToken();
+      const wsUrl = token
+        ? `${WS_URL}/ws?token=${encodeURIComponent(token)}`
+        : `${WS_URL}/ws`;
+      const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
       ws.onopen = () => {
@@ -313,36 +374,22 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
             navigate("/");
             break;
 
-          case "start-success":
-            setUserId(data.peerId);
-            await applyWatermark(data.peerId);
-            break;
-
-          case "join-success":
-            setUserId(data.peerId);
-            await applyWatermark(data.peerId);
-            ws.send(JSON.stringify({
-              type: "ready-for-peers",
-              roomId,
-              peerId: data.peerId
-            }));
-            break;
-
           case "peer-joined":
-            // Watermark is guaranteed applied before any peer joins
-            // because server sends join-success before any peer-joined
+            await watermarkReadyPromiseRef.current;
             await sendOffer(data.peerId);
             break;
 
           case "offer":
-            await handleOffer(data.from, data.payload);
+            await handleOffer(data.from, data.payload.name, data.payload.offer);
             break;
 
           case "answer": {
             const pc = pcRef.current.get(data.from);
             if (pc) await pc.setRemoteDescription(
-              new RTCSessionDescription(data.payload)
+              new RTCSessionDescription(data.payload.answer)
             );
+            peerNames.set(data.from, data.payload.name);
+            setPeerNames(new Map(peerNames));
             console.log("Received answer from:", data.from);
             break;
           }
@@ -395,7 +442,8 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
       <MeetingVideos
         peers={peers}
-        userId={userId}
+        userName={authUser.displayName}
+        peerNames={peerNames}
         isVideoEnabled={isVideoEnabled}
         localVideoRef={localVideoRef}
         remoteVideosRef={remoteVideosRef}
@@ -418,6 +466,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
 MeetingRoom.propTypes = {
   meetingRoomAttributes: PropTypes.shape({
+    authUser: PropTypes.object.isRequired,
     command: PropTypes.string.isRequired,
     isAudioEnabledPair: PropTypes.shape({
       isAudioEnabled: PropTypes.bool.isRequired,
