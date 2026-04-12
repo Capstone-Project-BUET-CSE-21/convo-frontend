@@ -1,6 +1,6 @@
 import PropTypes from "prop-types";
 
-const MeetingVideos = ({ peers, userId, isVideoEnabled, localVideoRef, remoteVideosRef }) => {
+const MeetingVideos = ({ peers, userName, peerNames, isVideoEnabled, localVideoRef, remoteVideosRef }) => {
     const visiblePeers = peers.length > 5 ? peers.slice(0, 5) : peers;
     const hiddenPeersCount = peers.length > 5 ? peers.length - 5 : 0;
 
@@ -17,20 +17,22 @@ const MeetingVideos = ({ peers, userId, isVideoEnabled, localVideoRef, remoteVid
             <div className="video-wrapper local-video-wrapper">
                 <video ref={localVideoRef} autoPlay muted playsInline className="video" />
                 {!isVideoEnabled && <div className="video-overlay">Camera is off</div>}
-                <div className="video-label">{userId}</div>
+                <div className="video-label" title={userName}>{userName}</div>
             </div>
 
-            {visiblePeers.map((pid) => (
-                <div key={pid} className="video-wrapper remote-video-wrapper">
-                    <video
-                        autoPlay
-                        playsInline
-                        className="video"
-                        ref={(el) => attachRemoteStream(pid, el)}
-                    />
-                    <div className="video-label">{pid}</div>
-                </div>
-            ))}
+            {visiblePeers.map((pid) => {
+                const peerName = peerNames.get(pid) || "Unknown Participant";
+                return (
+                    <div key={pid} className="video-wrapper remote-video-wrapper">
+                        <video
+                            autoPlay
+                            playsInline
+                            className="video"
+                            ref={(el) => attachRemoteStream(pid, el)}
+                        />
+                        <div className="video-label" title={peerName}>{peerName}</div>
+                    </div>
+            )})}
 
             {hiddenPeersCount > 0 && (
                 <div className="hidden-participants">
@@ -43,7 +45,8 @@ const MeetingVideos = ({ peers, userId, isVideoEnabled, localVideoRef, remoteVid
 
 MeetingVideos.propTypes = {
     peers: PropTypes.arrayOf(PropTypes.string).isRequired,
-    userId: PropTypes.string.isRequired,
+    userName: PropTypes.string.isRequired,
+    peerNames: PropTypes.instanceOf(Map).isRequired,
     isVideoEnabled: PropTypes.bool.isRequired,
     localVideoRef: PropTypes.shape({ current: PropTypes.any }).isRequired,
     remoteVideosRef: PropTypes.shape({ current: PropTypes.any }).isRequired,
