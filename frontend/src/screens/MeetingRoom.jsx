@@ -351,9 +351,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       applyWatermark();
 
       const token = getAuthToken();
-      const wsUrl = token
-        ? `${WS_URL}/ws?token=${encodeURIComponent(token)}`
-        : `${WS_URL}/ws`;
+      const wsUrl = `${WS_URL}/ws` + (token ? `?token=${encodeURIComponent(token)}` : "");
       const ws = new WebSocket(wsUrl);
       wsRef.current = ws;
 
