@@ -709,8 +709,8 @@ export default function WatermarkTestPage() {
                 <div className="watermark-result-title" style={{ fontSize: 15 }}>
                   {backendResult.watermarkDetected ? "✅ WATERMARK DETECTED" : "❌ NO WATERMARK DETECTED"}
                 </div>
-                {backendResult.detectedUser && (
-                  <div>Detected user: <strong style={{ color: "#4caf50" }}>{backendResult.detectedUser}</strong></div>
+                {backendResult.detectedUserDisplayName && (
+                  <div>Detected display name: <strong style={{ color: "#4caf50" }}>{backendResult.detectedUserDisplayName}</strong></div>
                 )}
                 <div>Session ID:         {backendResult.sessionId}</div>
                 <div>Correlation score:  <strong>{backendResult.correlationScore}</strong></div>
@@ -720,14 +720,19 @@ export default function WatermarkTestPage() {
                   <div style={{ marginTop: 10 }}>
                     <div style={{ color: "#aaa", marginBottom: 4, fontSize: 12 }}>All user scores:</div>
                     <div style={{ background: "#0d0d0d", borderRadius: 4, padding: "8px 12px", fontSize: 12, overflowX: "auto" }}>
-                      {Object.entries(backendResult.allUserScores).map(([uid, score]) => (
-                        <div key={uid} style={{ display: "flex", justifyContent: "space-between", gap: 24, wordBreak: "break-word" }}>
-                          <span style={{ color: uid === backendResult.detectedUser ? "#4caf50" : "#aaa" }}>
-                            {uid === backendResult.detectedUser ? "▶ " : "  "}{uid}
-                          </span>
-                          <span>{score}</span>
-                        </div>
-                      ))}
+                      {Object.entries(backendResult.allUserScores).map(([userId, score]) => {
+                        const displayName = backendResult.userDisplayNames?.[userId] || userId;
+                        const isDetected = userId === backendResult.detectedUser;
+
+                        return (
+                          <div key={userId} style={{ display: "flex", justifyContent: "space-between", gap: 24, wordBreak: "break-word" }}>
+                            <span style={{ color: isDetected ? "#4caf50" : "#aaa" }}>
+                              {isDetected ? "▶ " : "  "}{displayName}
+                            </span>
+                            <span>{score}</span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

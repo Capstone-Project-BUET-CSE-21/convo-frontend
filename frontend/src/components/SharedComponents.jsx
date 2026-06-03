@@ -120,7 +120,7 @@ export const AuthSidebar = ({ user, onNavigateHome, onLogout, currentPath }) => 
         close();
     }, [currentPath]);
 
-    const displayName = user?.displayName || user?.userName || "User";
+    const displayName = user?.displayName || "User";
     const email = user?.email || "No email available";
     const initialsSource = (displayName || email).trim();
     const initials = initialsSource
@@ -242,7 +242,6 @@ AuthPrimaryButton.propTypes = {
 AuthSidebar.propTypes = {
     user: PropTypes.shape({
         displayName: PropTypes.string,
-        userName: PropTypes.string,
         email: PropTypes.string,
     }),
     onNavigateHome: PropTypes.func.isRequired,

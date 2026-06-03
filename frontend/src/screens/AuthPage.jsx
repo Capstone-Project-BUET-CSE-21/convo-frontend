@@ -19,7 +19,6 @@ const emptyLoginForm = {
 const emptySignupForm = {
     firstName: "",
     lastName: "",
-    userName: "",
     email: "",
     password: "",
     confirmPassword: "",
@@ -155,7 +154,6 @@ const AuthPage = ({ onAuthSuccess }) => {
         const requiredFields = [
             signupForm.firstName,
             signupForm.lastName,
-            signupForm.userName,
             signupForm.email,
             signupForm.password,
             signupForm.confirmPassword,
@@ -187,7 +185,6 @@ const AuthPage = ({ onAuthSuccess }) => {
                     body: JSON.stringify({
                         firstName: signupForm.firstName.trim(),
                         lastName: signupForm.lastName.trim(),
-                        userName: signupForm.userName.trim(),
                         email: signupForm.email.trim(),
                         password: signupForm.password,
                         confirmPassword: signupForm.confirmPassword,
@@ -307,16 +304,6 @@ const AuthPage = ({ onAuthSuccess }) => {
                                 autoComplete="family-name"
                             />
                         </div>
-
-                        <AuthTextField
-                            label="User name"
-                            type="text"
-                            name="user-name"
-                            placeholder="username"
-                            value={signupForm.userName}
-                            onChange={updateSignupField("userName")}
-                            autoComplete="username"
-                        />
 
                         <AuthTextField
                             label="Email"

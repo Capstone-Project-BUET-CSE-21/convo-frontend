@@ -1,6 +1,6 @@
 import PropTypes from "prop-types";
 
-const MeetingVideos = ({ peers, userName, peerNames, isVideoEnabled, localVideoRef, remoteVideosRef }) => {
+const MeetingVideos = ({ peers, displayName, peerNames, isVideoEnabled, localVideoRef, remoteVideosRef }) => {
     const visiblePeers = peers.length > 5 ? peers.slice(0, 5) : peers;
     const hiddenPeersCount = peers.length > 5 ? peers.length - 5 : 0;
 
@@ -17,7 +17,7 @@ const MeetingVideos = ({ peers, userName, peerNames, isVideoEnabled, localVideoR
             <div className="video-wrapper local-video-wrapper">
                 <video ref={localVideoRef} autoPlay muted playsInline className="video" />
                 {!isVideoEnabled && <div className="video-overlay">Camera is off</div>}
-                <div className="video-label" title={userName}>{userName}</div>
+                <div className="video-label" title={displayName}>{displayName}</div>
             </div>
 
             {visiblePeers.map((pid) => {
@@ -32,7 +32,8 @@ const MeetingVideos = ({ peers, userName, peerNames, isVideoEnabled, localVideoR
                         />
                         <div className="video-label" title={peerName}>{peerName}</div>
                     </div>
-            )})}
+                )
+            })}
 
             {hiddenPeersCount > 0 && (
                 <div className="hidden-participants">
@@ -45,7 +46,7 @@ const MeetingVideos = ({ peers, userName, peerNames, isVideoEnabled, localVideoR
 
 MeetingVideos.propTypes = {
     peers: PropTypes.arrayOf(PropTypes.string).isRequired,
-    userName: PropTypes.string.isRequired,
+    displayName: PropTypes.string.isRequired,
     peerNames: PropTypes.instanceOf(Map).isRequired,
     isVideoEnabled: PropTypes.bool.isRequired,
     localVideoRef: PropTypes.shape({ current: PropTypes.any }).isRequired,

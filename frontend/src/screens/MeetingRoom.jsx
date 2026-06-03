@@ -440,7 +440,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
       <MeetingVideos
         peers={peers}
-        userName={authUser.displayName}
+        displayName={authUser.displayName}
         peerNames={peerNames}
         isVideoEnabled={isVideoEnabled}
         localVideoRef={localVideoRef}
