@@ -50,7 +50,7 @@ const useMeetingRecording = ({
   const recordingSamplesRef = useRef([]);
   const recordingSampleRateRef = useRef(48000);
 
-  const startRecording = () => {
+  const startRecording = async () => {
     const workletAudioContext = watermarkAudioContextRef.current;
     const workletNode = watermarkWorkletNodeRef.current;
     const localStream = localVideoRef.current?.srcObject;
@@ -80,19 +80,30 @@ const useMeetingRecording = ({
     recordingSampleRateRef.current = audioCtx.sampleRate;
     recordingSamplesRef.current = [];
 
-    const scriptNode = audioCtx.createScriptProcessor(4096, 1, 1);
-    scriptNode.onaudioprocess = (event) => {
-      recordingSamplesRef.current.push(
-        new Float32Array(event.inputBuffer.getChannelData(0))
-      );
-    };
+    // Use AudioWorklet-based recorder to avoid deprecated ScriptProcessorNode
+    let silentDestination = null;
+    try {
+      await audioCtx.audioWorklet.addModule('/recorder-processor.worklet.js');
+      const recorderNode = new AudioWorkletNode(audioCtx, 'recorder-processor');
+      recorderNode.port.onmessage = (e) => {
+        recordingSamplesRef.current.push(new Float32Array(e.data));
+      };
 
-    // Keep capture silent to avoid local echo.
-    const silentDestination = audioCtx.createMediaStreamDestination();
-    sourceNode.connect(scriptNode);
-    scriptNode.connect(silentDestination);
+      // Keep capture silent to avoid local echo.
+      silentDestination = audioCtx.createMediaStreamDestination();
+      sourceNode.connect(recorderNode);
+      recorderNode.connect(silentDestination);
 
-    recordingScriptNodeRef.current = scriptNode;
+      recordingScriptNodeRef.current = recorderNode;
+    } catch (err) {
+      console.error('recorder worklet registration failed', err);
+      // Abort recording when AudioWorklet is unavailable
+      if (audioCtx && recordingSourceModeRef.current === 'fallback') {
+        audioCtx.close();
+      }
+      setIsRecording(false);
+      return;
+    }
     recordingSilentDestRef.current = silentDestination;
     setIsRecording(true);
     setRecordedBlob(null);
@@ -104,8 +115,10 @@ const useMeetingRecording = ({
       return;
     }
 
+    // Disconnect recorder node (AudioWorkletNode or ScriptProcessorNode)
     recordingScriptNodeRef.current?.disconnect();
-  recordingSilentDestRef.current = null;
+    recordingScriptNodeRef.current = null;
+    recordingSilentDestRef.current = null;
 
     const chunks = recordingSamplesRef.current;
     const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);

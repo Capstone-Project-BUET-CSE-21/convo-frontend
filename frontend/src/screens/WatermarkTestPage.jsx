@@ -98,6 +98,7 @@ export default function WatermarkTestPage() {
   const [recUserId, setRecUserId] = useState("");
   const timerRef = useRef(null);
   const samplesRef = useRef([]);
+  const recorderNodeRef = useRef(null);
   // const fileRef = useRef(null);
 
   // ── Test 3 ──
@@ -233,16 +234,25 @@ export default function WatermarkTestPage() {
       return;
     }
 
-    // ── Capture lossless WAV from worklet output ────────────────────────────
-    const scriptNode = audioContext.createScriptProcessor(4096, 1, 1);
-    scriptNode.onaudioprocess = (e) => {
-      samplesRef.current.push(new Float32Array(e.inputBuffer.getChannelData(0)));
-    };
-
-    // Connect to silent destination — NOT audioContext.destination (causes echo)
-    const silentDest = audioContext.createMediaStreamDestination();
-    workletNode.connect(scriptNode);
-    scriptNode.connect(silentDest);
+    // ── Capture lossless WAV from worklet output via AudioWorklet recorder ──
+    try {
+      await audioContext.audioWorklet.addModule('/recorder-processor.worklet.js');
+      const recorderNode = new AudioWorkletNode(audioContext, 'recorder-processor');
+      recorderNode.port.onmessage = (ev) => {
+        samplesRef.current.push(new Float32Array(ev.data));
+      };
+      const silentDest = audioContext.createMediaStreamDestination();
+      workletNode.connect(recorderNode);
+      recorderNode.connect(silentDest);
+      recorderNodeRef.current = recorderNode;
+    } catch (err) {
+      console.error('recorder worklet registration failed', err);
+      setRecError('AudioWorklet recorder unavailable in this browser');
+      setRecStatus('idle');
+      audioContext.close();
+      micStream.getTracks().forEach((t) => t.stop());
+      return;
+    }
 
     // ── Record original mic for comparison ────────────────────────────────
     const origRecorder = new MediaRecorder(micStream);
@@ -263,7 +273,8 @@ export default function WatermarkTestPage() {
       if (remaining <= 0) {
         clearInterval(timerRef.current);
         origRecorder.stop();
-        scriptNode.disconnect();
+        recorderNodeRef.current?.disconnect();
+        recorderNodeRef.current = null;
 
         const all = samplesRef.current;
         const total = all.reduce((s, c) => s + c.length, 0);
