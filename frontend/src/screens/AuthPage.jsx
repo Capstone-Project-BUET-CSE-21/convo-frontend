@@ -1,27 +1,81 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
-import {
-    AuthPasswordField,
-    AuthPrimaryButton,
-    AuthTextField,
-} from "../components/SharedComponents";
 import { saveAuthSession } from "../auth/authSession";
 import "./AuthPage.css";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
-const emptyLoginForm = {
-    email: "",
-    password: "",
-};
-
+const emptyLoginForm = { email: "", password: "" };
 const emptySignupForm = {
     firstName: "",
     lastName: "",
     email: "",
     password: "",
     confirmPassword: "",
+};
+
+const EyeIcon = ({ open }) => (
+    <img
+        src={open ? "/open.png" : "/close.png"}
+        alt={open ? "Hide password" : "Show password"}
+        className="eye-icon"
+    />
+);
+
+const ArrowIcon = () => (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+        <line x1="5" y1="12" x2="19" y2="12" />
+        <polyline points="12 5 19 12 12 19" />
+    </svg>
+);
+
+const Field = ({ label, children }) => (
+    <div className="auth-field">
+        <label className="auth-label">{label}</label>
+        {children}
+    </div>
+);
+
+Field.propTypes = {
+    label: PropTypes.string.isRequired,
+    children: PropTypes.node.isRequired,
+};
+
+const TextField = ({ label, ...props }) => (
+    <Field label={label}>
+        <input className="auth-input" {...props} />
+    </Field>
+);
+
+TextField.propTypes = {
+    label: PropTypes.string.isRequired,
+};
+
+const PasswordField = ({ label, isVisible, onToggle, ...props }) => (
+    <Field label={label}>
+        <div className="auth-input-wrap">
+            <input
+                className="auth-input has-toggle"
+                type={isVisible ? "text" : "password"}
+                {...props}
+            />
+            <button
+                type="button"
+                className="auth-toggle-btn"
+                onClick={onToggle}
+                aria-label={isVisible ? "Hide password" : "Show password"}
+            >
+                <EyeIcon open={isVisible} />
+            </button>
+        </div>
+    </Field>
+);
+
+PasswordField.propTypes = {
+    label: PropTypes.string.isRequired,
+    isVisible: PropTypes.bool,
+    onToggle: PropTypes.func,
 };
 
 const AuthPage = ({ onAuthSuccess }) => {
@@ -41,36 +95,23 @@ const AuthPage = ({ onAuthSuccess }) => {
 
     useEffect(() => {
         const timers = hideTimersRef.current;
-        return () => {
-            Object.values(timers).forEach((timer) => {
-                clearTimeout(timer);
-            });
-        };
+        return () => Object.values(timers).forEach(clearTimeout);
     }, []);
 
     const togglePasswordVisibility = (field) => {
         setShowPasswords((current) => {
-            const nextValue = !current[field];
-
+            const next = !current[field];
             if (hideTimersRef.current[field]) {
                 clearTimeout(hideTimersRef.current[field]);
                 delete hideTimersRef.current[field];
             }
-
-            if (nextValue) {
+            if (next) {
                 hideTimersRef.current[field] = setTimeout(() => {
-                    setShowPasswords((latest) => ({
-                        ...latest,
-                        [field]: false,
-                    }));
+                    setShowPasswords((latest) => ({ ...latest, [field]: false }));
                     delete hideTimersRef.current[field];
                 }, 3000);
             }
-
-            return {
-                ...current,
-                [field]: nextValue,
-            };
+            return { ...current, [field]: next };
         });
     };
 
@@ -80,108 +121,63 @@ const AuthPage = ({ onAuthSuccess }) => {
         setFeedback("");
     };
 
-    const updateLoginField = (field) => (event) => {
-        setLoginForm((current) => ({
-            ...current,
-            [field]: event.target.value,
-        }));
-    };
+    const updateField = (setter, field) => (e) =>
+        setter((cur) => ({ ...cur, [field]: e.target.value }));
 
-    const updateSignupField = (field) => (event) => {
-        setSignupForm((current) => ({
-            ...current,
-            [field]: event.target.value,
-        }));
-    };
-
-    const handleLoginSubmit = (event) => {
-        event.preventDefault();
-
-        if (isSubmitting) {
-            return;
-        }
-
+    const handleLoginSubmit = (e) => {
+        e.preventDefault();
+        if (isSubmitting) return;
         if (!loginForm.email.trim() || !loginForm.password.trim()) {
             setError("Enter both email and password to continue.");
-            setFeedback("");
             return;
         }
-
-        const submitLogin = async () => {
+        (async () => {
             setIsSubmitting(true);
             setError("");
             setFeedback("");
-
             try {
-                const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         email: loginForm.email.trim(),
                         password: loginForm.password,
                     }),
                 });
-
-                const payload = await response.json().catch(() => ({}));
-
-                if (!response.ok) {
-                    throw new Error(payload?.message || "Login failed. Please check your credentials.");
-                }
-
+                const payload = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(payload?.message || "Login failed. Please check your credentials.");
                 saveAuthSession(payload);
                 onAuthSuccess(payload.user);
-                setFeedback("Login successful. Redirecting to home...");
+                setFeedback("Login successful. Redirecting…");
                 navigate("/home", { replace: true });
             } catch (err) {
                 setError(err.message || "Login failed.");
             } finally {
                 setIsSubmitting(false);
             }
-        };
-
-        submitLogin();
+        })();
     };
 
-    const handleSignupSubmit = (event) => {
-        event.preventDefault();
-
-        if (isSubmitting) {
+    const handleSignupSubmit = (e) => {
+        e.preventDefault();
+        if (isSubmitting) return;
+        const vals = [signupForm.firstName, signupForm.lastName, signupForm.email, signupForm.password, signupForm.confirmPassword];
+        if (vals.some((v) => !v.trim())) {
+            setError("Fill in every field before creating an account.");
             return;
         }
-
-        const requiredFields = [
-            signupForm.firstName,
-            signupForm.lastName,
-            signupForm.email,
-            signupForm.password,
-            signupForm.confirmPassword,
-        ];
-
-        if (requiredFields.some((value) => !value.trim())) {
-            setError("Fill in every signup field before creating an account.");
-            setFeedback("");
-            return;
-        }
-
         if (signupForm.password !== signupForm.confirmPassword) {
             setError("Passwords do not match.");
-            setFeedback("");
             return;
         }
-
-        const submitSignup = async () => {
+        (async () => {
             setIsSubmitting(true);
             setError("");
             setFeedback("");
-
             try {
-                const response = await fetch(`${API_BASE_URL}/api/auth/signup`, {
+                const res = await fetch(`${API_BASE_URL}/api/auth/signup`, {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                    },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
                         firstName: signupForm.firstName.trim(),
                         lastName: signupForm.lastName.trim(),
@@ -190,160 +186,183 @@ const AuthPage = ({ onAuthSuccess }) => {
                         confirmPassword: signupForm.confirmPassword,
                     }),
                 });
-
-                const payload = await response.json().catch(() => ({}));
-
-                if (!response.ok) {
-                    throw new Error(payload?.message || "Signup failed. Please try different credentials.");
-                }
-
+                const payload = await res.json().catch(() => ({}));
+                if (!res.ok) throw new Error(payload?.message || "Signup failed. Please try different credentials.");
                 saveAuthSession(payload);
                 onAuthSuccess(payload.user);
-                setFeedback("Signup successful. Redirecting to home...");
+                setFeedback("Account created. Redirecting…");
                 navigate("/home", { replace: true });
             } catch (err) {
                 setError(err.message || "Signup failed.");
             } finally {
                 setIsSubmitting(false);
             }
-        };
-
-        submitSignup();
+        })();
     };
 
     return (
         <div className="auth-page">
+            {/* Left intro panel */}
             <section className="auth-intro">
-                <span className="auth-kicker">Convo access portal</span>
-                <h1>Sign in or create your account to join the workspace.</h1>
+                <h1>
+                    Where <em>conversations</em> create momentum.
+                </h1>
+                <div className="auth-intro-footnote">
+                    <span className="auth-intro-dot">Audio Watermarking</span>
+                    <span className="auth-intro-dot">Confidentiality Chain in File Sharing</span>
+                </div>
             </section>
 
-            <section className="auth-card" aria-labelledby="auth-title">
-                <div className="auth-card-header">
-                    <div>
-                        <p className="auth-brand">Convo</p>
-                        <h2 id="auth-title">{mode === "login" ? "Welcome back" : "Create an account"}</h2>
+            {/* Right auth panel */}
+            <section className="auth-panel" aria-labelledby="auth-title">
+                <div className="auth-brand-mark">
+                    <div className="auth-brand-logo" aria-hidden="true">
+                        <img className="logo-image"
+                            src="/convo-logo-1.png"
+                            alt="Convo Logo"
+                        />
                     </div>
+                    <span className="auth-brand-name">Convo</span>
+                </div>
 
-                    <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
-                        <button
-                            type="button"
-                            className={mode === "login" ? "auth-tab active" : "auth-tab"}
-                            onClick={() => switchMode("login")}
-                            aria-pressed={mode === "login"}
-                            disabled={isSubmitting}
-                        >
-                            Login
-                        </button>
-                        <button
-                            type="button"
-                            className={mode === "signup" ? "auth-tab active" : "auth-tab"}
-                            onClick={() => switchMode("signup")}
-                            aria-pressed={mode === "signup"}
-                            disabled={isSubmitting}
-                        >
-                            Sign up
-                        </button>
-                    </div>
+                <h2 id="auth-title" className="auth-heading">
+                    {mode === "login" ? "Welcome back" : "Create account"}
+                </h2>
+                <p className="auth-subheading">
+                    {mode === "login"
+                        ? "Sign in to access your workspace."
+                        : "Join your team on Convo today."}
+                </p>
+
+                <div className="auth-tabs" role="tablist" aria-label="Authentication mode">
+                    <button
+                        type="button"
+                        className={`auth-tab${mode === "login" ? " active" : ""}`}
+                        onClick={() => switchMode("login")}
+                        aria-pressed={mode === "login"}
+                        disabled={isSubmitting}
+                    >
+                        Sign in
+                    </button>
+                    <button
+                        type="button"
+                        className={`auth-tab${mode === "signup" ? " active" : ""}`}
+                        onClick={() => switchMode("signup")}
+                        aria-pressed={mode === "signup"}
+                        disabled={isSubmitting}
+                    >
+                        Sign up
+                    </button>
                 </div>
 
                 <div className="auth-status" aria-live="polite">
-                    {error ? <p className="auth-message error">{error}</p> : null}
-                    {feedback ? <p className="auth-message success">{feedback}</p> : null}
+                    {error && <p className="auth-message error">{error}</p>}
+                    {feedback && <p className="auth-message success">{feedback}</p>}
                 </div>
 
                 {mode === "login" ? (
-                    <form className="auth-form" onSubmit={handleLoginSubmit}>
-                        <AuthTextField
+                    <form className="auth-form" onSubmit={handleLoginSubmit} noValidate>
+                        <TextField
                             label="Email"
                             type="email"
                             name="login-email"
                             placeholder="you@example.com"
                             value={loginForm.email}
-                            onChange={updateLoginField("email")}
+                            onChange={updateField(setLoginForm, "email")}
                             autoComplete="email"
                         />
-
-                        <AuthPasswordField
+                        <PasswordField
                             label="Password"
                             name="login-password"
                             placeholder="Enter your password"
                             value={loginForm.password}
-                            onChange={updateLoginField("password")}
+                            onChange={updateField(setLoginForm, "password")}
                             autoComplete="current-password"
                             isVisible={showPasswords.loginPassword}
                             onToggle={() => togglePasswordVisibility("loginPassword")}
                         />
-
-                        <div className="auth-actions auth-actions-single">
-                            <AuthPrimaryButton>
-                                {isSubmitting ? "Signing in..." : "Continue to workspace"}
-                            </AuthPrimaryButton>
+                        <div className="auth-actions">
+                            <button
+                                type="submit"
+                                className="auth-btn-primary"
+                                disabled={isSubmitting}
+                            >
+                                {isSubmitting ? "Signing in…" : "Continue to workspace"}
+                                {!isSubmitting && <ArrowIcon />}
+                            </button>
                         </div>
                     </form>
                 ) : (
-                    <form className="auth-form" onSubmit={handleSignupSubmit}>
+                    <form className="auth-form" onSubmit={handleSignupSubmit} noValidate>
                         <div className="auth-grid-two">
-                            <AuthTextField
+                            <TextField
                                 label="First name"
                                 type="text"
                                 name="first-name"
-                                placeholder="First Name"
+                                placeholder="First name"
                                 value={signupForm.firstName}
-                                onChange={updateSignupField("firstName")}
+                                onChange={updateField(setSignupForm, "firstName")}
                                 autoComplete="given-name"
                             />
-
-                            <AuthTextField
+                            <TextField
                                 label="Last name"
                                 type="text"
                                 name="last-name"
-                                placeholder="Last Name"
+                                placeholder="Last name"
                                 value={signupForm.lastName}
-                                onChange={updateSignupField("lastName")}
+                                onChange={updateField(setSignupForm, "lastName")}
                                 autoComplete="family-name"
                             />
                         </div>
-
-                        <AuthTextField
+                        <TextField
                             label="Email"
                             type="email"
                             name="signup-email"
-                            placeholder="email"
+                            placeholder="you@example.com"
                             value={signupForm.email}
-                            onChange={updateSignupField("email")}
+                            onChange={updateField(setSignupForm, "email")}
                             autoComplete="email"
                         />
-
                         <div className="auth-grid-two">
-                            <AuthPasswordField
+                            <PasswordField
                                 label="Password"
                                 name="signup-password"
                                 placeholder="Create password"
                                 value={signupForm.password}
-                                onChange={updateSignupField("password")}
+                                onChange={updateField(setSignupForm, "password")}
                                 autoComplete="new-password"
                                 isVisible={showPasswords.signupPassword}
                                 onToggle={() => togglePasswordVisibility("signupPassword")}
                             />
-
-                            <AuthPasswordField
-                                label="Confirm password"
+                            <PasswordField
+                                label="Confirm"
                                 name="confirm-password"
                                 placeholder="Confirm password"
                                 value={signupForm.confirmPassword}
-                                onChange={updateSignupField("confirmPassword")}
+                                onChange={updateField(setSignupForm, "confirmPassword")}
                                 autoComplete="new-password"
                                 isVisible={showPasswords.confirmPassword}
                                 onToggle={() => togglePasswordVisibility("confirmPassword")}
                             />
                         </div>
-
                         <div className="auth-actions">
-                            <AuthPrimaryButton>{isSubmitting ? "Creating account..." : "Create account"}</AuthPrimaryButton>
+                            <button
+                                type="submit"
+                                className="auth-btn-primary"
+                                disabled={isSubmitting}
+                            >
+                                {isSubmitting ? "Creating account…" : "Create account"}
+                                {!isSubmitting && <ArrowIcon />}
+                            </button>
                         </div>
                     </form>
                 )}
+
+                <footer className="auth-footer">
+                    By continuing you agree to our{" "}
+                    <a href="#">Terms of Service</a> and{" "}
+                    <a href="#">Privacy Policy</a>.
+                </footer>
             </section>
         </div>
     );
@@ -354,7 +373,7 @@ AuthPage.propTypes = {
 };
 
 AuthPage.defaultProps = {
-    onAuthSuccess: () => {},
+    onAuthSuccess: () => { },
 };
 
 export default AuthPage;

@@ -49,6 +49,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
   const [peers, setPeers] = useState([]);
   const [copied, setCopied] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   const navigate = useNavigate();
 
   const {
@@ -75,6 +76,16 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
       console.error("Failed to copy meeting ID:", err);
+    }
+  };
+
+  const copyMeetingLink = async () => {
+    try {
+      await navigator.clipboard.writeText(`${FRONTEND_URL}/room/${roomId}`);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    } catch (err) {
+      console.error("Failed to copy meeting link:", err);
     }
   };
 
@@ -434,7 +445,9 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       <MeetingHeader
         roomId={roomId}
         copied={copied}
+        copiedLink={copiedLink}
         onCopyMeetingId={copyMeetingId}
+        onCopyMeetingLink={copyMeetingLink}
         participantsCount={peers.length + 1}
       />
 
