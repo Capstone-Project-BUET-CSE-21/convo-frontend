@@ -39,6 +39,11 @@ const ParticipantAvatar = ({ name, size = "large" }) => (
   </div>
 );
 
+ParticipantAvatar.propTypes = {
+  name: PropTypes.string,
+  size: PropTypes.oneOf(["small", "large"]),
+};
+
 // ---------------------------------------------------------------------------
 // RemoteParticipantVideo — a single remote peer tile (video or avatar)
 // ---------------------------------------------------------------------------
@@ -92,6 +97,13 @@ const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef }) => {
   );
 };
 
+RemoteParticipantTile.propTypes = {
+  peerId: PropTypes.string.isRequired,
+  peerName: PropTypes.string,
+  remoteVideosRef: PropTypes.shape({
+    current: PropTypes.instanceOf(Map),
+  }).isRequired,
+};
 // ---------------------------------------------------------------------------
 // MeetingRoom
 // ---------------------------------------------------------------------------
