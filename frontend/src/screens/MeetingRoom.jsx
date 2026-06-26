@@ -4,7 +4,6 @@ import PropTypes from 'prop-types';
 import "./MeetingRoom.css";
 import createProcessedStream from "../audio/audioWorkletSetup";
 import MeetingHeader from "../meeting/MeetingHeader";
-import MeetingVideos from "../meeting/MeetingVideos";
 import MeetingControls from "../meeting/MeetingControls";
 import useMeetingRecording from "../meeting/useMeetingRecording";
 import { getAuthToken } from "../auth/authSession";
@@ -12,6 +11,90 @@ import { getAuthToken } from "../auth/authSession";
 const WS_URL = import.meta.env.VITE_WS_BASE_URL;
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
 const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL;
+const FRONTEND_URL = `https://convo-frontend-nine.vercel.app/`;
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Derives initials from a display name, e.g. "John Doe" → "JD", "Alice" → "A" */
+const getInitials = (name = "") =>
+  name
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase())
+    .join("")
+    .slice(0, 2);
+
+// ---------------------------------------------------------------------------
+// ParticipantAvatar — shown when a participant's camera is off
+// ---------------------------------------------------------------------------
+
+const ParticipantAvatar = ({ name, size = "large" }) => (
+  <div className={`participant-avatar participant-avatar--${size}`}>
+    <div className="participant-avatar__circle">
+      <span className="participant-avatar__initials">{getInitials(name)}</span>
+    </div>
+    <span className="participant-avatar__name">{name}</span>
+  </div>
+);
+
+// ---------------------------------------------------------------------------
+// RemoteParticipantVideo — a single remote peer tile (video or avatar)
+// ---------------------------------------------------------------------------
+
+const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef }) => {
+  const videoRef = useRef(null);
+  const [hasVideo, setHasVideo] = useState(false);
+
+  useEffect(() => {
+    const stream = remoteVideosRef.current.get(peerId);
+    if (!stream || !videoRef.current) return;
+
+    videoRef.current.srcObject = stream;
+
+    const checkVideo = () => {
+      const videoTracks = stream.getVideoTracks();
+      setHasVideo(videoTracks.length > 0 && videoTracks[0].enabled);
+    };
+
+    checkVideo();
+
+    const videoTrack = stream.getVideoTracks()[0];
+    if (videoTrack) {
+      videoTrack.addEventListener("mute", checkVideo);
+      videoTrack.addEventListener("unmute", checkVideo);
+      videoTrack.addEventListener("ended", checkVideo);
+    }
+
+    return () => {
+      if (videoTrack) {
+        videoTrack.removeEventListener("mute", checkVideo);
+        videoTrack.removeEventListener("unmute", checkVideo);
+        videoTrack.removeEventListener("ended", checkVideo);
+      }
+    };
+  }, [peerId, remoteVideosRef]);
+
+  return (
+    <div className="remote-tile">
+      <video
+        ref={videoRef}
+        className={`remote-tile__video ${!hasVideo ? "remote-tile__video--hidden" : ""}`}
+        autoPlay
+        playsInline
+      />
+      {!hasVideo && (
+        <ParticipantAvatar name={peerName || "Guest"} size="large" />
+      )}
+      <span className="remote-tile__name-badge">{peerName || "Guest"}</span>
+    </div>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// MeetingRoom
+// ---------------------------------------------------------------------------
 
 const MeetingRoom = ({ meetingRoomAttributes }) => {
   const { authUser, command, isAudioEnabledPair, isVideoEnabledPair } = meetingRoomAttributes;
@@ -68,6 +151,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   navigateRef.current = navigate;
   stopRecordingRef.current = stopRecording;
 
+  // ── Clipboard helpers ────────────────────────────────────────────────────
 
   const copyMeetingId = async () => {
     try {
@@ -88,6 +172,8 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       console.error("Failed to copy meeting link:", err);
     }
   };
+
+  // ── WebRTC helpers ───────────────────────────────────────────────────────
 
   const createPeerConnection = async (peerId) => {
     if (pcRef.current.has(peerId)) {
@@ -186,8 +272,9 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     setPeers(p => p.filter(id => id !== peerId));
   };
 
+  // ── Room actions ─────────────────────────────────────────────────────────
+
   const leaveRoom = () => {
-    // Cleanly stop any active recording before leaving
     stopRecording();
 
     watermarkAudioContextRef.current?.close?.();
@@ -212,10 +299,8 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   const toggleAudio = () => {
     const next = !isAudioEnabled;
     if (gainNodeRef.current) {
-      // Watermarked path — mute via gain node, not track.enabled
       gainNodeRef.current.gain.value = next ? 1 : 0;
     } else {
-      // Pre-watermark fallback
       localVideoRef.current?.srcObject?.getAudioTracks().forEach(t => { t.enabled = next; });
     }
     setIsAudioEnabled(next);
@@ -228,6 +313,8 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     });
     setIsVideoEnabled(next);
   };
+
+  // ── Backend / watermark helpers ──────────────────────────────────────────
 
   const makeMeetingEntry = async () => {
     const token = getAuthToken();
@@ -248,12 +335,11 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   const fetchWatermarkConfig = async () => {
     try {
       console.log("Fetching watermark config for roomId/userId:", roomId, userId);
-      const res = await fetch(`${WATERMARK_URL}/api/watermark/config?roomId=${encodeURIComponent(roomId)}&userId=${encodeURIComponent(userId)}`, {
-        method: "GET"
-      });
-      if (!res.ok) {
-        throw new Error(`Watermark config request failed: ${res.status}`);
-      }
+      const res = await fetch(
+        `${WATERMARK_URL}/api/watermark/config?roomId=${encodeURIComponent(roomId)}&userId=${encodeURIComponent(userId)}`,
+        { method: "GET" }
+      );
+      if (!res.ok) throw new Error(`Watermark config request failed: ${res.status}`);
       const data = await res.json();
       console.log("Received watermark config:", data);
       return data;
@@ -283,7 +369,6 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
       watermarkAudioContextRef.current = audioContext;
       watermarkWorkletNodeRef.current = workletNode;
-
       gainNodeRef.current = processedStream._gainNode;
 
       if (localVideoRef.current) {
@@ -293,7 +378,6 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       const audioTrack = processedStream.getAudioTracks()[0] ?? null;
       const videoTrack = processedStream.getVideoTracks()[0] ?? null;
 
-      // Apply current toggle state to processed stream
       if (audioTrack) audioTrack.enabled = isAudioEnabled;
       if (videoTrack) videoTrack.enabled = isVideoEnabled;
 
@@ -315,9 +399,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
 
-      if (!response.ok) {
-        throw new Error(`Credentials request failed: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`Credentials request failed: ${response.status}`);
 
       const data = await response.json();
       serverRef.current = data.credentials;
@@ -327,11 +409,12 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     }
   };
 
+  // ── Initialization effect ────────────────────────────────────────────────
+
   useEffect(() => {
     const pcs = pcRef.current;
 
     const initialize = async () => {
-      // Both must be ready before WebSocket opens
       watermarkReadyPromiseRef.current = new Promise((resolve) => {
         watermarkReadyResolveRef.current = resolve;
       });
@@ -346,15 +429,11 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
           },
         }),
         fetchServerCredentials(),
-        makeMeetingEntry()
+        makeMeetingEntry(),
       ]);
 
-      rawStream.getAudioTracks().forEach((track) => {
-        track.enabled = isAudioEnabled;
-      });
-      rawStream.getVideoTracks().forEach((track) => {
-        track.enabled = isVideoEnabled;
-      });
+      rawStream.getAudioTracks().forEach((track) => { track.enabled = isAudioEnabled; });
+      rawStream.getVideoTracks().forEach((track) => { track.enabled = isVideoEnabled; });
 
       rawStreamRef.current = rawStream;
       if (localVideoRef.current) localVideoRef.current.srcObject = rawStream;
@@ -394,9 +473,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
           case "answer": {
             const pc = pcRef.current.get(data.from);
-            if (pc) await pc.setRemoteDescription(
-              new RTCSessionDescription(data.payload.answer)
-            );
+            if (pc) await pc.setRemoteDescription(new RTCSessionDescription(data.payload.answer));
             peerNames.set(data.from, data.payload.name);
             setPeerNames(new Map(peerNames));
             console.log("Received answer from:", data.from);
@@ -422,7 +499,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         }
       };
 
-      ws.onerror = e => console.error("WebSocket error:", e);
+      ws.onerror = (e) => console.error("WebSocket error:", e);
       ws.onclose = () => console.log("WebSocket closed");
     };
 
@@ -440,37 +517,110 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     };
   }, []);
 
+  // ── Render ───────────────────────────────────────────────────────────────
+
+  // Determine which peer to feature as the primary (first peer in the list).
+  // Additional peers fall into a sidebar strip, matching Google Meet's layout.
+  const [primaryPeerId, ...secondaryPeerIds] = peers;
+  const primaryPeerName = peerNames.get(primaryPeerId) || "Guest";
+
   return (
-    <div className="room-container">
-      <MeetingHeader
-        roomId={roomId}
-        copied={copied}
-        copiedLink={copiedLink}
-        onCopyMeetingId={copyMeetingId}
-        onCopyMeetingLink={copyMeetingLink}
-        participantsCount={peers.length + 1}
-      />
+    <div className="gmeet-room">
 
-      <MeetingVideos
-        peers={peers}
-        displayName={authUser.displayName}
-        peerNames={peerNames}
-        isVideoEnabled={isVideoEnabled}
-        localVideoRef={localVideoRef}
-        remoteVideosRef={remoteVideosRef}
-      />
+      {/* ── Top bar ── */}
+      <header className="gmeet-room__header">
+        <MeetingHeader
+          roomId={roomId}
+          copied={copied}
+          copiedLink={copiedLink}
+          onCopyMeetingId={copyMeetingId}
+          onCopyMeetingLink={copyMeetingLink}
+          participantsCount={peers.length + 1}
+        />
+      </header>
 
-      <MeetingControls
-        isAudioEnabled={isAudioEnabled}
-        isVideoEnabled={isVideoEnabled}
-        isRecording={isRecording}
-        hasRecording={hasRecording}
-        onToggleAudio={toggleAudio}
-        onToggleVideo={toggleVideo}
-        onToggleRecording={toggleRecording}
-        onDownloadRecording={downloadRecording}
-        onLeaveRoom={leaveRoom}
-      />
+      {/* ── Main stage ── */}
+      <main className="gmeet-room__stage">
+
+        {/* Primary video area — remote peer (or waiting state when alone) */}
+        <section className="gmeet-room__primary">
+          {primaryPeerId ? (
+            <RemoteParticipantTile
+              key={primaryPeerId}
+              peerId={primaryPeerId}
+              peerName={primaryPeerName}
+              remoteVideosRef={remoteVideosRef}
+            />
+          ) : (
+            /* Waiting for others to join */
+            <div className="gmeet-room__waiting">
+              <p className="gmeet-room__waiting-text">Waiting for others to join…</p>
+            </div>
+          )}
+        </section>
+
+        {/* Secondary peers strip — visible only when there are 2+ remote peers */}
+        {secondaryPeerIds.length > 0 && (
+          <aside className="gmeet-room__secondary-strip">
+            {secondaryPeerIds.map((peerId) => (
+              <RemoteParticipantTile
+                key={peerId}
+                peerId={peerId}
+                peerName={peerNames.get(peerId) || "Guest"}
+                remoteVideosRef={remoteVideosRef}
+              />
+            ))}
+          </aside>
+        )}
+
+        {/* Self-view pip — bottom-right overlay */}
+        <div className="gmeet-room__self-view">
+          <div className="self-view__inner">
+            {/* Local video — always rendered; hidden via CSS when camera is off */}
+            <video
+              ref={localVideoRef}
+              className={`self-view__video ${!isVideoEnabled ? "self-view__video--hidden" : ""}`}
+              autoPlay
+              playsInline
+              muted
+            />
+
+            {/* Avatar shown when local camera is off */}
+            {!isVideoEnabled && (
+              <ParticipantAvatar name={authUser.displayName} size="small" />
+            )}
+
+            {/* Muted indicator badge */}
+            {!isAudioEnabled && (
+              <span className="self-view__muted-badge" aria-label="Microphone muted">
+                🎤
+              </span>
+            )}
+
+            {/* Name label */}
+            <span className="self-view__name-label">
+              {authUser.displayName} (You)
+            </span>
+          </div>
+        </div>
+
+      </main>
+
+      {/* ── Bottom control bar ── */}
+      <footer className="gmeet-room__controls">
+        <MeetingControls
+          isAudioEnabled={isAudioEnabled}
+          isVideoEnabled={isVideoEnabled}
+          isRecording={isRecording}
+          hasRecording={hasRecording}
+          onToggleAudio={toggleAudio}
+          onToggleVideo={toggleVideo}
+          onToggleRecording={toggleRecording}
+          onDownloadRecording={downloadRecording}
+          onLeaveRoom={leaveRoom}
+        />
+      </footer>
+
     </div>
   );
 };
@@ -481,13 +631,13 @@ MeetingRoom.propTypes = {
     command: PropTypes.string.isRequired,
     isAudioEnabledPair: PropTypes.shape({
       isAudioEnabled: PropTypes.bool.isRequired,
-      setIsAudioEnabled: PropTypes.func.isRequired
+      setIsAudioEnabled: PropTypes.func.isRequired,
     }).isRequired,
     isVideoEnabledPair: PropTypes.shape({
       isVideoEnabled: PropTypes.bool.isRequired,
-      setIsVideoEnabled: PropTypes.func.isRequired
-    }).isRequired
-  }).isRequired
+      setIsVideoEnabled: PropTypes.func.isRequired,
+    }).isRequired,
+  }).isRequired,
 };
 
 export default MeetingRoom;
