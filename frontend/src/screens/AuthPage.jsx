@@ -23,6 +23,10 @@ const EyeIcon = ({ open }) => (
     />
 );
 
+EyeIcon.propTypes = {
+    open: PropTypes.bool.isRequired,
+};
+
 const ArrowIcon = () => (
     <svg viewBox="0 0 24 24" aria-hidden="true">
         <line x1="5" y1="12" x2="19" y2="12" />
@@ -48,8 +52,11 @@ const TextField = ({ label, ...props }) => (
     </Field>
 );
 
+
 TextField.propTypes = {
     label: PropTypes.string.isRequired,
+    value: PropTypes.any,
+    onChange: PropTypes.func,
 };
 
 const PasswordField = ({ label, isVisible, onToggle, ...props }) => (
