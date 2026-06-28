@@ -3,8 +3,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import PropTypes from 'prop-types';
 import "./MeetingRoom.css";
 import createProcessedStream from "../audio/audioWorkletSetup";
-import MeetingHeader from "../meeting/MeetingHeader";
-import MeetingControls from "../meeting/MeetingControls";
 import useMeetingRecording from "../meeting/useMeetingRecording";
 import { getAuthToken } from "../auth/authSession";
 
@@ -12,6 +10,7 @@ const WS_URL = import.meta.env.VITE_WS_BASE_URL;
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
 const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL;
 const FRONTEND_URL = `https://convo-frontend-nine.vercel.app/`;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -45,7 +44,7 @@ ParticipantAvatar.propTypes = {
 };
 
 // ---------------------------------------------------------------------------
-// RemoteParticipantVideo — a single remote peer tile (video or avatar)
+// RemoteParticipantTile — a single remote peer tile (video or avatar)
 // ---------------------------------------------------------------------------
 
 const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef }) => {
@@ -82,17 +81,17 @@ const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef }) => {
   }, [peerId, remoteVideosRef]);
 
   return (
-    <div className="remote-tile">
+    <div className="participant-card">
       <video
         ref={videoRef}
-        className={`remote-tile__video ${!hasVideo ? "remote-tile__video--hidden" : ""}`}
+        className={`participant-video ${!hasVideo ? "participant-video--hidden" : ""}`}
         autoPlay
         playsInline
       />
       {!hasVideo && (
         <ParticipantAvatar name={peerName || "Guest"} size="large" />
       )}
-      <span className="remote-tile__name-badge">{peerName || "Guest"}</span>
+      <span className="participant-label">{peerName || "Guest"}</span>
     </div>
   );
 };
@@ -104,6 +103,7 @@ RemoteParticipantTile.propTypes = {
     current: PropTypes.instanceOf(Map),
   }).isRequired,
 };
+
 // ---------------------------------------------------------------------------
 // MeetingRoom
 // ---------------------------------------------------------------------------
@@ -529,108 +529,222 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     };
   }, []);
 
+  // ── Gallery layout helper ────────────────────────────────────────────────
+
+  // Total tile count includes the local user + all remote peers.
+  const totalParticipants = peers.length + 1;
+
+  // Expose tile count as a data attribute so CSS can apply grid rules per count.
+  const gridDataAttr = { "data-tile-count": totalParticipants };
+
   // ── Render ───────────────────────────────────────────────────────────────
 
-  // Determine which peer to feature as the primary (first peer in the list).
-  // Additional peers fall into a sidebar strip, matching Google Meet's layout.
-  const [primaryPeerId, ...secondaryPeerIds] = peers;
-  const primaryPeerName = peerNames.get(primaryPeerId) || "Guest";
-
   return (
-    <div className="gmeet-room">
+    <div className="meeting-room">
 
-      {/* ── Top bar ── */}
-      <header className="gmeet-room__header">
-        <MeetingHeader
-          roomId={roomId}
-          copied={copied}
-          copiedLink={copiedLink}
-          onCopyMeetingId={copyMeetingId}
-          onCopyMeetingLink={copyMeetingLink}
-          participantsCount={peers.length + 1}
-        />
+      {/* ── Header ── */}
+      <header className="meeting-header">
+        <div className="meeting-header__room-info">
+          <span className="meeting-header__room-label">Room ID:</span>
+          <span className="meeting-header__room-id">{roomId}</span>
+        </div>
+
+        <div className="meeting-header__actions">
+          {/* Copy Meeting ID */}
+          <button
+            className={`meeting-header__copy-btn ${copied ? "meeting-header__copy-btn--success" : ""}`}
+            onClick={copyMeetingId}
+            aria-label="Copy Meeting ID"
+          >
+            {copied ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+            )}
+            <span>{copied ? "Copied" : "Copy ID"}</span>
+          </button>
+
+          {/* Copy Meeting Link */}
+          <button
+            className={`meeting-header__copy-btn ${copiedLink ? "meeting-header__copy-btn--success" : ""}`}
+            onClick={copyMeetingLink}
+            aria-label="Copy Meeting Link"
+          >
+            {copiedLink ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+              </svg>
+            )}
+            <span>{copiedLink ? "Copied" : "Copy Link"}</span>
+          </button>
+        </div>
       </header>
 
-      {/* ── Main stage ── */}
-      <main className="gmeet-room__stage">
+      {/* ── Gallery stage ── */}
+      <main className="meeting-stage">
+        <section className="participants-grid" {...gridDataAttr}>
 
-        {/* Primary video area — remote peer (or waiting state when alone) */}
-        <section className="gmeet-room__primary">
-          {primaryPeerId ? (
-            <RemoteParticipantTile
-              key={primaryPeerId}
-              peerId={primaryPeerId}
-              peerName={primaryPeerName}
-              remoteVideosRef={remoteVideosRef}
-            />
-          ) : (
-            /* Waiting for others to join */
-            <div className="gmeet-room__waiting">
-              <p className="gmeet-room__waiting-text">Waiting for others to join…</p>
-            </div>
-          )}
-        </section>
-
-        {/* Secondary peers strip — visible only when there are 2+ remote peers */}
-        {secondaryPeerIds.length > 0 && (
-          <aside className="gmeet-room__secondary-strip">
-            {secondaryPeerIds.map((peerId) => (
-              <RemoteParticipantTile
-                key={peerId}
-                peerId={peerId}
-                peerName={peerNames.get(peerId) || "Guest"}
-                remoteVideosRef={remoteVideosRef}
-              />
-            ))}
-          </aside>
-        )}
-
-        {/* Self-view pip — bottom-right overlay */}
-        <div className="gmeet-room__self-view">
-          <div className="self-view__inner">
-            {/* Local video — always rendered; hidden via CSS when camera is off */}
+          {/* Local user tile — always first in the grid */}
+          <div className="participant-card participant-card--self">
             <video
               ref={localVideoRef}
-              className={`self-view__video ${!isVideoEnabled ? "self-view__video--hidden" : ""}`}
+              className={`participant-video ${!isVideoEnabled ? "participant-video--hidden" : ""}`}
               autoPlay
               playsInline
               muted
             />
 
-            {/* Avatar shown when local camera is off */}
             {!isVideoEnabled && (
-              <ParticipantAvatar name={authUser.displayName} size="small" />
+              <ParticipantAvatar name={authUser.displayName} size="large" />
             )}
 
-            {/* Muted indicator badge */}
+            {/* Muted mic indicator — same mic SVG as Homepage, with the diagonal slash */}
             {!isAudioEnabled && (
-              <span className="self-view__muted-badge" aria-label="Microphone muted">
-                🎤
+              <span className="participant-muted-indicator" aria-label="Microphone muted">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                  <line x1="12" y1="19" x2="12" y2="23"></line>
+                  <line x1="8" y1="23" x2="16" y2="23"></line>
+                  <line x1="1" y1="1" x2="23" y2="23"></line>
+                </svg>
               </span>
             )}
 
-            {/* Name label */}
-            <span className="self-view__name-label">
+            <span className="participant-label">
               {authUser.displayName} (You)
             </span>
           </div>
-        </div>
 
+          {/* Remote participant tiles */}
+          {peers.map((peerId) => (
+            <RemoteParticipantTile
+              key={peerId}
+              peerId={peerId}
+              peerName={peerNames.get(peerId) || "Guest"}
+              remoteVideosRef={remoteVideosRef}
+            />
+          ))}
+
+          {/* Waiting state — shown only when the local user is alone */}
+          {peers.length === 0 && (
+            <div className="participants-grid__waiting">
+              <p className="participants-grid__waiting-text">Waiting for others to join…</p>
+            </div>
+          )}
+
+        </section>
       </main>
 
-      {/* ── Bottom control bar ── */}
-      <footer className="gmeet-room__controls">
-        <MeetingControls
-          isAudioEnabled={isAudioEnabled}
-          isVideoEnabled={isVideoEnabled}
-          isRecording={isRecording}
-          hasRecording={hasRecording}
-          onToggleAudio={toggleAudio}
-          onToggleVideo={toggleVideo}
-          onToggleRecording={toggleRecording}
-          onDownloadRecording={downloadRecording}
-          onLeaveRoom={leaveRoom}
-        />
+      {/* ── Bottom toolbar ── */}
+      <footer className="meeting-toolbar">
+
+        {/* 1. Mute / Unmute — mic SVG from Homepage, slash rendered conditionally */}
+        <button
+          className={`toolbar-btn toolbar-btn--audio ${!isAudioEnabled ? "toolbar-btn--off" : ""}`}
+          onClick={toggleAudio}
+          aria-label={isAudioEnabled ? "Mute microphone" : "Unmute microphone"}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+            {!isAudioEnabled && <line x1="1" y1="1" x2="23" y2="23"></line>}
+          </svg>
+          <span className="toolbar-btn__label">{isAudioEnabled ? "Mute" : "Unmute"}</span>
+        </button>
+
+        {/* 2. Camera On / Off — video SVG from Homepage, slash rendered conditionally */}
+        <button
+          className={`toolbar-btn toolbar-btn--video ${!isVideoEnabled ? "toolbar-btn--off" : ""}`}
+          onClick={toggleVideo}
+          aria-label={isVideoEnabled ? "Turn off camera" : "Turn on camera"}
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="23 7 16 12 23 17 23 7"></polygon>
+            <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+            {!isVideoEnabled && <line x1="1" y1="1" x2="23" y2="23"></line>}
+          </svg>
+          <span className="toolbar-btn__label">{isVideoEnabled ? "Camera On" : "Camera Off"}</span>
+        </button>
+
+        {/* 3. Record Audio */}
+        <div className="toolbar-btn-group">
+          <button
+            className={`toolbar-btn toolbar-btn--record ${isRecording ? "toolbar-btn--active" : ""}`}
+            onClick={toggleRecording}
+            aria-label={isRecording ? "Stop recording" : "Start recording"}
+          >
+            {isRecording ? (
+              /* Stop — filled square */
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              </svg>
+            ) : (
+              /* Record — filled circle */
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="8"></circle>
+              </svg>
+            )}
+            <span className="toolbar-btn__label">{isRecording ? "Stop Rec" : "Record"}</span>
+          </button>
+
+          {hasRecording && !isRecording && (
+            <button
+              className="toolbar-btn toolbar-btn--download"
+              onClick={downloadRecording}
+              aria-label="Download recording"
+            >
+              {/* Download arrow */}
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span className="toolbar-btn__label">Download</span>
+            </button>
+          )}
+        </div>
+
+        {/* 4. Chat (placeholder — functionality not yet implemented) */}
+        <button
+          className="toolbar-btn toolbar-btn--chat"
+          onClick={() => {}}
+          aria-label="Open chat"
+        >
+          {/* Speech bubble */}
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span className="toolbar-btn__label">Chat</span>
+        </button>
+
+        {/* 5. Leave Call */}
+        <button
+          className="toolbar-btn toolbar-btn--leave"
+          onClick={leaveRoom}
+          aria-label="Leave call"
+        >
+          {/* Phone with arrow indicating hang-up */}
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.42 19.42 0 0 1 4.43 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.34 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L7.34 9.9a16 16 0 0 0 3.34 3.41z"></path>
+            <line x1="23" y1="1" x2="17" y2="7"></line>
+            <polyline points="17 1 23 1 23 7"></polyline>
+          </svg>
+          <span className="toolbar-btn__label">Leave</span>
+        </button>
+
       </footer>
 
     </div>
