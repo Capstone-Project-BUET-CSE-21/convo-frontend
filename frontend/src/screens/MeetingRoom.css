@@ -1,10 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
 
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+/* ============================================================
+   Design tokens — mirrors AuthPage.css so the system is shared
+   ============================================================ */
 
 :root {
   --brand: #805ae6;
@@ -15,10 +13,18 @@
   --ink-subtle: #A09FB0;
   --surface: #FFFFFF;
   --surface-raised: #FAFAF9;
+  --surface-room: #0f0f14;        /* near-black stage background */
+  --surface-tile: #1a1a24;        /* individual participant card */
+  --surface-tile-hover: #22222f;
+  --surface-toolbar: rgba(15, 15, 20, 0.92);
+  --surface-header: rgba(15, 15, 20, 0.88);
   --border: rgba(13, 13, 18, 0.08);
   --border-mid: rgba(13, 13, 18, 0.14);
+  --border-room: rgba(255, 255, 255, 0.06);
   --red: #E5484D;
+  --red-soft: rgba(229, 72, 77, 0.15);
   --green: #30A46C;
+  --green-soft: rgba(48, 164, 108, 0.15);
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 20px;
@@ -28,751 +34,442 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
 
-  /* Meeting-specific tokens */
-  --meet-bg: #1A1A24;
-  --meet-surface: #22222E;
-  --meet-surface-raised: #2A2A38;
-  --meet-border: rgba(255, 255, 255, 0.08);
-  --meet-border-mid: rgba(255, 255, 255, 0.14);
-  --meet-ink: #F0EFF8;
-  --meet-ink-muted: #A09FB0;
-  --meet-avatar-bg: #C4B5FD;
-  --meet-avatar-bg-deep: #7C3AED;
-  --meet-pip-width: 220px;
-  --meet-pip-height: 138px;
-  --meet-controls-height: 80px;
-  --meet-header-height: 60px;
+  /* toolbar geometry */
+  --toolbar-height: 80px;
+  --header-height: 56px;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Auth page (unchanged)
-───────────────────────────────────────────────────────────── */
 
-.auth-page {
+/* ============================================================
+   Room shell
+   ============================================================ */
+
+.meeting-room {
   font-family: var(--font-body);
-  min-height: 100vh;
   display: grid;
-  grid-template-columns: 1fr 580px;
-  background: linear-gradient(
-    90deg,
-    rgba(170, 138, 255, 0.14) 0%,
-    rgba(235, 233, 255, 0.08) 45%,
-    #FFFFFF 100%
-  );
-  position: relative;
+  grid-template-rows: var(--header-height) 1fr var(--toolbar-height);
+  min-height: 100vh;
+  background: var(--surface-room);
+  color: #fff;
   overflow: hidden;
 }
 
-.auth-page::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image:
-    radial-gradient(circle at 15% 50%, rgba(170, 138, 255, 0.03) 0%, transparent 55%),
-    radial-gradient(circle at 85% 20%, rgba(170, 138, 255, 0.02) 0%, transparent 45%);
-  pointer-events: none;
-}
 
-.auth-intro {
+/* ============================================================
+   Header
+   ============================================================ */
+
+.meeting-header {
   display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 4rem 5rem 4rem 6rem;
-  position: relative;
-  z-index: 1;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  background: var(--surface-header);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-room);
+  gap: 1rem;
+  z-index: 10;
 }
 
-.auth-kicker {
-  font-family: var(--font-body);
-  font-size: 10px;
+.meeting-header__room-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.meeting-header__room-label {
+  font-size: 11px;
   font-weight: 500;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--ink-muted);
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 2rem;
+  color: var(--ink-subtle);
 }
 
-.auth-kicker::before {
-  content: '';
-  display: block;
-  width: 20px;
-  height: 1px;
-  background: var(--ink-muted);
-}
-
-.auth-intro h1 {
-  font-family: var(--font-display);
-  font-size: clamp(2.6rem, 4vw, 3.8rem);
-  font-weight: 400;
-  line-height: 1.12;
-  color: var(--ink);
-  letter-spacing: -0.02em;
-  max-width: 480px;
-}
-
-.auth-intro h1 em {
-  font-style: italic;
-  color: var(--brand);
-}
-
-.auth-intro-footnote {
-  margin-top: 3rem;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.auth-intro-dot {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--ink-muted);
-  font-weight: 400;
-}
-
-.auth-intro-dot::before {
-  content: '';
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--green);
-  display: block;
-}
-
-.auth-panel {
-  background: var(--surface);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 3rem 3.5rem;
-  position: relative;
-  z-index: 1;
-  border-left: 1px solid var(--border);
-  animation: panelIn 0.7s var(--ease-out) both;
-}
-
-@keyframes panelIn {
-  from {
-    opacity: 0;
-    transform: translateX(24px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.auth-brand-mark {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 2.5rem;
-}
-
-.auth-brand-logo {
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.logo-image {
-  width: 66px;
-  height: auto;
-}
-
-.auth-brand-name {
-  font-family: var(--font-body);
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--ink);
-}
-
-.auth-heading {
-  font-family: var(--font-display);
-  font-size: 2rem;
-  font-weight: 400;
-  color: var(--ink);
-  letter-spacing: -0.02em;
-  line-height: 1.1;
-  margin-bottom: 0.35rem;
-}
-
-.auth-subheading {
-  font-size: 14px;
-  color: var(--ink-muted);
-  font-weight: 400;
-  margin-bottom: 2rem;
-}
-
-.auth-tabs {
-  display: flex;
-  background: #F0EFE9;
-  border-radius: var(--radius-md);
-  padding: 3px;
-  margin-bottom: 2rem;
-  gap: 0;
-}
-
-.auth-tab {
-  flex: 1;
-  padding: 8px 16px;
+.meeting-header__room-id {
   font-family: var(--font-body);
   font-size: 13px;
   font-weight: 500;
-  border: none;
-  border-radius: calc(var(--radius-md) - 3px);
-  cursor: pointer;
-  transition: all 0.2s var(--ease-out);
-  background: transparent;
-  color: var(--ink-muted);
-  letter-spacing: 0.01em;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-room);
+  border-radius: var(--radius-sm);
+  padding: 3px 10px;
+  letter-spacing: 0.04em;
 }
 
-.auth-tab.active {
-  background: var(--surface);
-  color: var(--ink);
-  box-shadow: 0 0 0 3px rgba(74, 58, 255, 0.1);
-}
-
-.auth-tab:not(.active):hover {
-  color: rgba(74, 58, 255, 0.1);
-}
-
-.auth-tab:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.auth-form {
+.meeting-header__actions {
   display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  align-items: center;
+  gap: 8px;
 }
 
-.auth-field {
-  display: flex;
-  flex-direction: column;
+/* Copy buttons — same visual language as Homepage meeting-id-action-btn */
+.meeting-header__copy-btn {
+  display: inline-flex;
+  align-items: center;
   gap: 6px;
-  animation: fieldIn 0.4s var(--ease-out) both;
-}
-
-@keyframes fieldIn {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.auth-field:nth-child(1) { animation-delay: 0.05s; }
-.auth-field:nth-child(2) { animation-delay: 0.1s; }
-.auth-field:nth-child(3) { animation-delay: 0.15s; }
-.auth-field:nth-child(4) { animation-delay: 0.2s; }
-
-.auth-label {
+  height: 32px;
+  padding: 0 12px;
+  font-family: var(--font-body);
   font-size: 12px;
   font-weight: 500;
-  color: var(--ink);
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-}
-
-.auth-input-wrap {
-  position: relative;
-}
-
-.auth-input {
-  width: 100%;
-  height: 46px;
-  padding: 0 14px;
-  font-family: var(--font-body);
-  font-size: 14px;
-  font-weight: 400;
-  color: var(--ink);
-  background: var(--surface-raised);
-  border: 1.5px solid var(--border-mid);
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-room);
   border-radius: var(--radius-sm);
-  outline: none;
-  transition: border-color 0.15s ease, background 0.15s ease, box-shadow 0.15s ease;
-  appearance: none;
-}
-
-.auth-input::placeholder {
-  color: var(--ink-subtle);
-}
-
-.auth-input:hover {
-  border-color: rgba(13, 13, 18, 0.25);
-}
-
-.auth-input:focus {
-  border-color: var(--brand);
-  background: var(--surface);
-  box-shadow: 0 0 0 3px rgba(74, 58, 255, 0.1);
-}
-
-.auth-input.has-toggle {
-  padding-right: 46px;
-}
-
-.auth-toggle-btn {
-  position: absolute;
-  right: 0;
-  top: 0;
-  height: 46px;
-  width: 46px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: none;
   cursor: pointer;
-  color: var(--ink-subtle);
-  transition: color 0.15s ease;
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
 }
 
-.auth-toggle-btn:hover {
-  color: var(--ink);
+.meeting-header__copy-btn svg {
+  flex-shrink: 0;
+  stroke: currentColor;
 }
 
-.auth-toggle-btn img,
-.eye-icon {
-  width: 20px;
-  height: 20px;
-  object-fit: contain;
-  opacity: 0.8;
-  transition: opacity 0.2s ease;
+.meeting-header__copy-btn:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
-.auth-toggle-btn:hover .eye-icon {
-  opacity: 1;
+.meeting-header__copy-btn--success {
+  color: var(--green);
+  background: var(--green-soft);
+  border-color: rgba(48, 164, 108, 0.25);
 }
 
-.auth-grid-two {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
+.meeting-header__copy-btn--success:hover {
+  color: var(--green);
+  background: var(--green-soft);
 }
 
-.auth-actions {
-  margin-top: 0.5rem;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
 
-.auth-btn-primary {
-  width: 100%;
-  height: 48px;
-  background: var(--ink);
-  color: white;
-  border: none;
-  border-radius: var(--radius-sm);
-  font-family: var(--font-body);
-  font-size: 14px;
-  font-weight: 500;
-  letter-spacing: 0.02em;
-  cursor: pointer;
-  transition: background 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  position: relative;
+/* ============================================================
+   Gallery stage
+   ============================================================ */
+
+.meeting-stage {
   overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  padding: 12px;
 }
 
-.auth-btn-primary::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 60%);
+
+/* ── Participants grid ── */
+
+/*
+  The grid fills the entire stage. Tiles always occupy all available space.
+  aspect-ratio on cards is only applied for counts > 1 (via the card rule below).
+  Columns are set per data-tile-count; rows are left implicit so the browser
+  fills them evenly.
+
+  Column mapping (optimised for maximising tile size):
+    1        → 1 col  (full-screen, no aspect-ratio lock)
+    2        → 2 cols (side by side, full height)
+    3        → 2 cols (3rd tile centred via auto margin)
+    4        → 2 cols (perfect 2×2)
+    5–6      → 3 cols
+    7–9      → 3 cols
+    10–12    → 4 cols
+    13–16    → 4 cols
+    17–20    → 5 cols
+*/
+
+.participants-grid {
+  flex: 1;
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+
+  /* default: 1 participant — single tile, fill everything */
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  align-items: stretch;
+  justify-items: stretch;
+}
+
+/* ── 2: two equal columns, full height ── */
+.participants-grid[data-tile-count="2"] {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: 1fr;
+}
+
+/* ── 3: 2 columns; the third card centres itself ── */
+.participants-grid[data-tile-count="3"] {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+/* The third child in a 3-participant grid spans both columns
+   and is constrained to a natural width so it stays centred */
+.participants-grid[data-tile-count="3"] .participant-card:nth-child(3) {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: 50%;
+}
+
+/* ── 4: 2×2 ── */
+.participants-grid[data-tile-count="4"] {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+/* ── 5–6: 3 columns, 2 rows ── */
+.participants-grid[data-tile-count="5"],
+.participants-grid[data-tile-count="6"] {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+/* Centre the lone last tile when count is 5 */
+.participants-grid[data-tile-count="5"] .participant-card:nth-child(5) {
+  grid-column: 2 / 3;
+}
+
+/* ── 7–9: 3 columns, 3 rows ── */
+.participants-grid[data-tile-count="7"],
+.participants-grid[data-tile-count="8"],
+.participants-grid[data-tile-count="9"] {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+
+/* Centre the lone last tile at 7 */
+.participants-grid[data-tile-count="7"] .participant-card:nth-child(7) {
+  grid-column: 2 / 3;
+}
+
+/* ── 10–12: 4 columns, 3 rows ── */
+.participants-grid[data-tile-count="10"],
+.participants-grid[data-tile-count="11"],
+.participants-grid[data-tile-count="12"] {
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+
+/* ── 13–16: 4 columns, 4 rows ── */
+.participants-grid[data-tile-count="13"],
+.participants-grid[data-tile-count="14"],
+.participants-grid[data-tile-count="15"],
+.participants-grid[data-tile-count="16"] {
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+}
+
+/* ── 17–20: 5 columns, 4 rows ── */
+.participants-grid[data-tile-count="17"],
+.participants-grid[data-tile-count="18"],
+.participants-grid[data-tile-count="19"],
+.participants-grid[data-tile-count="20"] {
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+}
+
+/* ── 21+: safety fallback — auto-fill with minimum tile width ── */
+.participants-grid[data-tile-count]:not(
+  [data-tile-count="1"],
+  [data-tile-count="2"],
+  [data-tile-count="3"],
+  [data-tile-count="4"],
+  [data-tile-count="5"],
+  [data-tile-count="6"],
+  [data-tile-count="7"],
+  [data-tile-count="8"],
+  [data-tile-count="9"],
+  [data-tile-count="10"],
+  [data-tile-count="11"],
+  [data-tile-count="12"],
+  [data-tile-count="13"],
+  [data-tile-count="14"],
+  [data-tile-count="15"],
+  [data-tile-count="16"],
+  [data-tile-count="17"],
+  [data-tile-count="18"],
+  [data-tile-count="19"],
+  [data-tile-count="20"]
+) {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-rows: unset;
+}
+
+/* Waiting message — spans the full grid when the local user is alone */
+.participants-grid__waiting {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
 }
 
-.auth-btn-primary:hover {
-  background: #1A1A24;
-  box-shadow: 0 6px 18px rgba(170, 138, 255, 0.12);
-}
-
-.auth-btn-primary:active {
-  transform: translateY(0);
-  box-shadow: none;
-}
-
-.auth-btn-primary:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.auth-btn-primary svg {
-  width: 15px;
-  height: 15px;
-  stroke: white;
-  fill: none;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  flex-shrink: 0;
-  transition: transform 0.2s var(--ease-out);
-}
-
-.auth-btn-primary:hover svg {
-  transform: translateX(2px);
-}
-
-.auth-status {
-  min-height: 20px;
-  margin-bottom: 0.75rem;
-}
-
-.auth-message {
-  font-size: 12.5px;
-  font-weight: 400;
-  padding: 10px 14px;
-  border-radius: var(--radius-sm);
-  line-height: 1.5;
-}
-
-.auth-message.error {
-  background: #FFF0F0;
-  color: var(--red);
-  border: 1px solid rgba(229, 72, 77, 0.18);
-}
-
-.auth-message.success {
-  background: #F0FAF5;
-  color: var(--green);
-  border: 1px solid rgba(48, 164, 108, 0.18);
-}
-
-.auth-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-size: 11px;
-  color: var(--ink-subtle);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-}
-
-.auth-divider::before,
-.auth-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border);
-}
-
-.auth-footer {
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--border);
-  font-size: 11px;
-  color: var(--ink-subtle);
-  text-align: center;
-  line-height: 1.6;
-}
-
-.auth-footer a {
-  color: var(--ink-muted);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.auth-toggle-btn svg {
-  width: 20px;
-  height: 20px;
-  color: #808080;
-}
-
-@media (max-width: 900px) {
-  .auth-page {
-    grid-template-columns: 1fr;
-    grid-template-rows: auto 1fr;
-  }
-
-  .auth-intro {
-    padding: 3rem 2rem 2rem;
-  }
-
-  .auth-intro h1 {
-    font-size: 2.2rem;
-  }
-
-  .auth-intro-footnote {
-    display: none;
-  }
-
-  .auth-panel {
-    padding: 2rem;
-    border-left: none;
-    border-top: 1px solid var(--border);
-  }
-}
-
-@media (max-width: 480px) {
-  .auth-grid-two {
-    grid-template-columns: 1fr;
-  }
-
-  .auth-intro {
-    padding: 2rem 1.5rem;
-  }
-
-  .auth-panel {
-    padding: 1.5rem;
-  }
-}
-
-/* ─────────────────────────────────────────────────────────────
-   Meeting room — root container
-───────────────────────────────────────────────────────────── */
-
-.gmeet-room {
-  font-family: var(--font-body);
-  display: grid;
-  grid-template-rows: var(--meet-header-height) 1fr var(--meet-controls-height);
-  height: 100dvh;
-  width: 100vw;
-  overflow: hidden;
-  background: var(--meet-bg);
-  color: var(--meet-ink);
-  position: relative;
-}
-
-/* ─────────────────────────────────────────────────────────────
-   Meeting room — header bar
-───────────────────────────────────────────────────────────── */
-
-.gmeet-room__header {
-  display: flex;
-  align-items: center;
-  padding: 0 1.25rem;
-  background: var(--meet-bg);
-  border-bottom: 1px solid var(--meet-border);
-  z-index: 20;
-  flex-shrink: 0;
-}
-
-/* ─────────────────────────────────────────────────────────────
-   Meeting room — main stage (video canvas)
-───────────────────────────────────────────────────────────── */
-
-.gmeet-room__stage {
-  position: relative;
-  display: flex;
-  flex-direction: row;
-  gap: 6px;
-  padding: 10px;
-  overflow: hidden;
-  background: var(--meet-bg);
-  min-height: 0; /* prevent grid blowout */
-}
-
-/* ─────────────────────────────────────────────────────────────
-   Meeting room — primary (hero) video area
-───────────────────────────────────────────────────────────── */
-
-.gmeet-room__primary {
-  flex: 1;
-  min-width: 0;
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-  background: var(--meet-surface);
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: tileIn 0.35s var(--ease-out) both;
-}
-
-@keyframes tileIn {
-  from {
-    opacity: 0;
-    transform: scale(0.97);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* ─────────────────────────────────────────────────────────────
-   Meeting room — secondary peers strip (sidebar)
-───────────────────────────────────────────────────────────── */
-
-.gmeet-room__secondary-strip {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  width: 180px;
-  flex-shrink: 0;
-  overflow-y: auto;
-  scrollbar-width: none;
-}
-
-.gmeet-room__secondary-strip::-webkit-scrollbar {
-  display: none;
-}
-
-.gmeet-room__secondary-strip .remote-tile {
-  height: 140px;
-  flex-shrink: 0;
-}
-
-/* ─────────────────────────────────────────────────────────────
-   Meeting room — waiting state (no peers yet)
-───────────────────────────────────────────────────────────── */
-
-.gmeet-room__waiting {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  width: 100%;
-  height: 100%;
-}
-
-.gmeet-room__waiting-text {
-  font-family: var(--font-body);
+.participants-grid__waiting-text {
   font-size: 14px;
   font-weight: 400;
-  color: var(--meet-ink-muted);
-  letter-spacing: 0.01em;
+  color: var(--ink-subtle);
+  letter-spacing: 0.02em;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Remote participant tile
-───────────────────────────────────────────────────────────── */
 
-.remote-tile {
+/* ── Participant card ── */
+
+.participant-card {
   position: relative;
-  width: 100%;
-  height: 100%;
+  background: var(--surface-tile);
   border-radius: var(--radius-lg);
   overflow: hidden;
-  background: var(--meet-surface);
+  border: 1px solid var(--border-room);
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: tileIn 0.35s var(--ease-out) both;
+  /* No aspect-ratio by default — tiles fill the grid cell fully */
+  min-width: 0;
+  min-height: 0;
+  transition: border-color 0.2s ease;
 }
 
-.remote-tile__video {
+/*
+  For counts > 1, enforce 16/9 so tiles don't become awkward slivers
+  when the grid has more columns than rows.
+  For count = 1, we deliberately skip this so the single tile fills
+  the entire stage vertically and horizontally.
+*/
+.participants-grid[data-tile-count]:not([data-tile-count="1"]) .participant-card {
+  aspect-ratio: 16/9;
+}
+
+.participant-card:hover {.meeting-toolbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+
+  height: var(--toolbar-height);
+  padding: 0 1.5rem;
+
+  background: var(--surface-toolbar);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  border-top: 1px solid var(--border-room);
+  z-index: 1000;
+}
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Self-tile: subtle brand tint on the border */
+.participant-card--self {
+  border-color: rgba(128, 90, 230, 0.3);
+}
+
+.participant-card--self:hover {
+  border-color: rgba(128, 90, 230, 0.5);
+}
+
+
+/* ── Participant video ── */
+
+.participant-video {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
   border-radius: inherit;
-  transition: opacity 0.25s var(--ease-out);
+  transform: scaleX(-1);
 }
 
-.remote-tile__video--hidden {
-  opacity: 0;
+.participant-video--hidden {
+  visibility: hidden;
   pointer-events: none;
-  position: absolute;
-  inset: 0;
 }
 
-/* Name badge — bottom-left overlay, Google Meet style */
-.remote-tile__name-badge {
+
+/* ── Participant name label ── */
+
+.participant-label {
   position: absolute;
-  bottom: 14px;
-  left: 14px;
-  font-family: var(--font-body);
+  bottom: 12px;
+  left: 12px;
   font-size: 12px;
   font-weight: 500;
-  color: #fff;
-  background: rgba(13, 13, 18, 0.55);
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
-  padding: 4px 10px;
-  border-radius: var(--radius-sm);
+  padding: 3px 8px;
+  border-radius: 6px;
   letter-spacing: 0.02em;
-  pointer-events: none;
-  white-space: nowrap;
-  max-width: calc(100% - 28px);
+  max-width: calc(100% - 24px);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Participant avatar (camera-off state)
-───────────────────────────────────────────────────────────── */
+
+/* ── Muted mic indicator on tile ── */
+
+.participant-muted-indicator {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--red-soft);
+  border: 1px solid rgba(229, 72, 77, 0.3);
+  border-radius: 50%;
+  color: var(--red);
+  pointer-events: none;
+}
+
+.participant-muted-indicator svg {
+  stroke: currentColor;
+}
+
+
+/* ============================================================
+   Participant avatar (camera off state)
+   ============================================================ */
 
 .participant-avatar {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 14px;
-  animation: avatarIn 0.3s var(--ease-out) both;
-}
-
-@keyframes avatarIn {
-  from {
-    opacity: 0;
-    transform: scale(0.88);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-/* Large variant — used in primary/remote tile */
-.participant-avatar--large .participant-avatar__circle {
-  width: 100px;
-  height: 100px;
-  font-size: 2.2rem;
-}
-
-.participant-avatar--large .participant-avatar__name {
-  font-size: 15px;
-}
-
-/* Small variant — used in self-view PiP */
-.participant-avatar--small .participant-avatar__circle {
-  width: 52px;
-  height: 52px;
-  font-size: 1.1rem;
-}
-
-.participant-avatar--small .participant-avatar__name {
-  font-size: 11px;
+  gap: 10px;
+  z-index: 1;
+  pointer-events: none;
 }
 
 .participant-avatar__circle {
-  border-radius: 50%;
-  background: linear-gradient(
-    135deg,
-    var(--meet-avatar-bg) 0%,
-    var(--brand-deep) 100%
-  );
   display: flex;
   align-items: center;
   justify-content: center;
+  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-deep) 100%);
+  border-radius: 50%;
   flex-shrink: 0;
-  box-shadow:
-    0 0 0 4px rgba(196, 181, 253, 0.18),
-    0 8px 24px rgba(128, 90, 230, 0.28);
+}
+
+.participant-avatar--large .participant-avatar__circle {
+  width: 96px;
+  height: 96px;
+}
+
+.participant-avatar--small .participant-avatar__circle {
+  width: 55px;
+  height: 55px;
 }
 
 .participant-avatar__initials {
@@ -781,263 +478,346 @@
   color: #fff;
   letter-spacing: 0.04em;
   line-height: 1;
-  user-select: none;
 }
 
+.participant-avatar--large .participant-avatar__initials {
+  font-size: 36px;
+}
+
+.participant-avatar--small .participant-avatar__initials {
+  font-size: 20px;
+}
+
+/* The name below the avatar circle — hidden inside tiles
+   because participant-label covers the name job there */
 .participant-avatar__name {
-  font-family: var(--font-body);
-  font-weight: 400;
-  color: var(--meet-ink-muted);
-  letter-spacing: 0.01em;
-  text-align: center;
-  max-width: 180px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: none;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Self-view PiP (picture-in-picture overlay)
-───────────────────────────────────────────────────────────── */
 
-.gmeet-room__self-view {
-  position: absolute;
-  bottom: 18px;
-  right: 18px;
-  width: var(--meet-pip-width);
-  height: var(--meet-pip-height);
-  z-index: 10;
-  border-radius: var(--radius-md);
-  overflow: hidden;
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.45),
-    0 0 0 1.5px var(--meet-border-mid);
-  animation: pipIn 0.4s var(--ease-out) both;
-  transition: box-shadow 0.2s var(--ease-out);
-}
+/* ============================================================
+   Bottom toolbar
+   ============================================================ */
 
-.gmeet-room__self-view:hover {
-  box-shadow:
-    0 8px 28px rgba(0, 0, 0, 0.55),
-    0 0 0 2px rgba(170, 138, 255, 0.35);
-}
+.meeting-toolbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
 
-@keyframes pipIn {
-  from {
-    opacity: 0;
-    transform: translateY(12px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-.self-view__inner {
-  position: relative;
-  width: 100%;
-  height: 100%;
-  background: var(--meet-surface-raised);
   display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+
+  height: var(--toolbar-height);
+  padding: 0 1.5rem;
+
+  background: var(--surface-toolbar);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  border-top: 1px solid var(--border-room);
+  z-index: 1000;
+}
+
+/* ── Base toolbar button ── */
+
+.toolbar-btn {
+  display: inline-flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-}
-
-.self-view__video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transform: scaleX(-1); /* mirror, like Google Meet */
-  transition: opacity 0.25s var(--ease-out);
-}
-
-.self-view__video--hidden {
-  opacity: 0;
-  pointer-events: none;
-  position: absolute;
-  inset: 0;
-}
-
-/* Muted mic badge — top-left of PiP */
-.self-view__muted-badge {
-  position: absolute;
-  top: 8px;
-  left: 8px;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  background: rgba(229, 72, 77, 0.88);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  line-height: 1;
-  pointer-events: none;
-  box-shadow: 0 2px 6px rgba(229, 72, 77, 0.4);
-  animation: badgeIn 0.2s var(--ease-out) both;
-}
-
-@keyframes badgeIn {
-  from { opacity: 0; transform: scale(0.7); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-/* "You" name label — bottom of PiP */
-.self-view__name-label {
-  position: absolute;
-  bottom: 7px;
-  left: 8px;
+  gap: 4px;
+  min-width: 56px;
+  height: 56px;
+  padding: 0 10px;
   font-family: var(--font-body);
   font-size: 10px;
   font-weight: 500;
-  color: #fff;
-  background: rgba(13, 13, 18, 0.55);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-  padding: 3px 8px;
-  border-radius: var(--radius-sm);
-  letter-spacing: 0.02em;
-  pointer-events: none;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
   white-space: nowrap;
-  max-width: calc(100% - 16px);
-  overflow: hidden;
-  text-overflow: ellipsis;
+  user-select: none;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Meeting room — bottom control bar
-───────────────────────────────────────────────────────────── */
+.toolbar-btn svg {
+  stroke: currentColor;
+  flex-shrink: 0;
+  transition: stroke 0.15s ease;
+}
 
-.gmeet-room__controls {
+.toolbar-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-room);
+}
+
+.toolbar-btn:active {
+  transform: scale(0.95);
+}
+
+.toolbar-btn__label {
+  line-height: 1;
+}
+
+
+/* ── States ── */
+
+/* Mic / camera disabled — red tint */
+.toolbar-btn--off {
+  color: var(--red);
+  background: var(--red-soft);
+  border-color: rgba(229, 72, 77, 0.2);
+}
+
+.toolbar-btn--off:hover {
+  color: var(--red);
+  background: rgba(229, 72, 77, 0.22);
+  border-color: rgba(229, 72, 77, 0.3);
+}
+
+/* Recording in progress — pulsing red dot feel via brand accent */
+.toolbar-btn--record.toolbar-btn--active {
+  color: var(--red);
+  background: var(--red-soft);
+  border-color: rgba(229, 72, 77, 0.2);
+  animation: recordPulse 2s var(--ease-in-out) infinite;
+}
+
+@keyframes recordPulse {
+  0%, 100% { background: var(--red-soft); }
+  50% { background: rgba(229, 72, 77, 0.25); }
+}
+
+/* Download — brand tint */
+.toolbar-btn--download {
+  color: var(--brand-deep);
+}
+
+.toolbar-btn--download:hover {
+  color: var(--brand-deep);
+  background: rgba(128, 90, 230, 0.12);
+  border-color: rgba(128, 90, 230, 0.2);
+}
+
+/* Chat — neutral */
+.toolbar-btn--chat {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Leave — red, always visible */
+.toolbar-btn--leave {
+  color: #fff;
+  background: var(--red);
+  border-color: transparent;
+  min-width: 64px;
+  margin-left: 12px;
+}
+
+.toolbar-btn--leave:hover {
+  background: #cc2d31;
+  border-color: transparent;
+  color: #fff;
+}
+
+.toolbar-btn--leave:active {
+  background: #b52428;
+}
+
+/* Record + Download grouped side by side */
+.toolbar-btn-group {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 0 1.5rem;
-  background: var(--meet-bg);
-  border-top: 1px solid var(--meet-border);
-  z-index: 20;
-  flex-shrink: 0;
-  gap: 10px;
+  gap: 4px;
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Responsive — tablet (≤ 900px)
-───────────────────────────────────────────────────────────── */
 
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+/* Tablet */
 @media (max-width: 900px) {
   :root {
-    --meet-pip-width: 160px;
-    --meet-pip-height: 100px;
-    --meet-controls-height: 70px;
-    --meet-header-height: 52px;
+    --toolbar-height: 72px;
+    --header-height: 52px;
   }
 
-  .gmeet-room__stage {
-    flex-direction: column;
+  .meeting-stage {
     padding: 8px;
   }
 
-  .gmeet-room__secondary-strip {
-    flex-direction: row;
-    width: 100%;
-    height: 100px;
-    overflow-x: auto;
-    overflow-y: hidden;
+  .participants-grid {
+    gap: 8px;
   }
 
-  .gmeet-room__secondary-strip .remote-tile {
-    width: 140px;
-    height: 100%;
-    flex-shrink: 0;
+  /* Collapse 3-col layouts to 2 columns on tablet */
+  .participants-grid[data-tile-count="5"],
+  .participants-grid[data-tile-count="6"],
+  .participants-grid[data-tile-count="7"],
+  .participants-grid[data-tile-count="8"],
+  .participants-grid[data-tile-count="9"] {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: unset;
   }
 
-  .participant-avatar--large .participant-avatar__circle {
-    width: 72px;
-    height: 72px;
-    font-size: 1.6rem;
+  /* Collapse 4-col layouts to 3 columns on tablet */
+  .participants-grid[data-tile-count="10"],
+  .participants-grid[data-tile-count="11"],
+  .participants-grid[data-tile-count="12"],
+  .participants-grid[data-tile-count="13"],
+  .participants-grid[data-tile-count="14"],
+  .participants-grid[data-tile-count="15"],
+  .participants-grid[data-tile-count="16"] {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: unset;
   }
 
-  .participant-avatar--large .participant-avatar__name {
-    font-size: 13px;
+  /* Collapse 5-col layouts to 4 columns on tablet */
+  .participants-grid[data-tile-count="17"],
+  .participants-grid[data-tile-count="18"],
+  .participants-grid[data-tile-count="19"],
+  .participants-grid[data-tile-count="20"] {
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: unset;
   }
 
-  .gmeet-room__self-view {
-    bottom: 12px;
-    right: 12px;
+  /* Reset any desktop nth-child centering — let tiles flow naturally */
+  .participants-grid[data-tile-count="5"] .participant-card:nth-child(5),
+  .participants-grid[data-tile-count="7"] .participant-card:nth-child(7) {
+    grid-column: unset;
+  }
+
+  /* The 3-participant lone tile still centres in 2-col layout */
+  .participants-grid[data-tile-count="3"] .participant-card:nth-child(3) {
+    width: 60%;
+  }
+
+  .toolbar-btn {
+    min-width: 48px;
+    height: 48px;
+    font-size: 9px;
+    gap: 3px;
+  }
+
+  .toolbar-btn--leave {
+    min-width: 52px;
+  }
+
+  .meeting-header__room-id {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
-/* ─────────────────────────────────────────────────────────────
-   Responsive — mobile (≤ 480px)
-───────────────────────────────────────────────────────────── */
-
-@media (max-width: 480px) {
+/* Phone */
+@media (max-width: 600px) {
   :root {
-    --meet-pip-width: 110px;
-    --meet-pip-height: 72px;
-    --meet-controls-height: 64px;
-    --meet-header-height: 48px;
+    --toolbar-height: auto;
+    --header-height: 48px;
   }
 
-  .gmeet-room__stage {
+  .meeting-room {
+    grid-template-rows: var(--header-height) 1fr auto;
+  }
+
+  .meeting-header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 8px 12px;
+    gap: 6px;
+  }
+
+  .meeting-header__actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .meeting-header__copy-btn {
+    height: 28px;
+    font-size: 11px;
+    padding: 0 10px;
+  }
+
+  .meeting-stage {
     padding: 6px;
-    gap: 4px;
   }
 
-  .gmeet-room__primary {
+  .participants-grid {
+    gap: 6px;
+    /* All counts: single column on phone */
+    grid-template-columns: 1fr !important;
+    grid-template-rows: unset !important;
+  }
+
+  /* Reset all desktop centering tricks on mobile — just stack */
+  .participants-grid .participant-card:nth-child(n) {
+    grid-column: unset;
+    justify-self: unset;
+    width: 100%;
+  }
+
+  /* Restore aspect-ratio on all tiles when stacked vertically */
+ .participants-grid[data-tile-count]:not([data-tile-count="1"]) .participant-card {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+}
+
+  .meeting-toolbar {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 12px;
+  }
+
+  .toolbar-btn {
+    min-width: 52px;
+    height: 52px;
+    font-size: 9px;
+  }
+
+  .toolbar-btn--leave {
+    margin-left: 0;
+  }
+
+  .participant-card {
     border-radius: var(--radius-md);
   }
 
-  .remote-tile {
-    border-radius: var(--radius-md);
-  }
-
-  .remote-tile__name-badge {
-    font-size: 10px;
-    padding: 3px 8px;
-    bottom: 10px;
-    left: 10px;
+  .participant-label {
+    font-size: 11px;
+    bottom: 8px;
+    left: 8px;
   }
 
   .participant-avatar--large .participant-avatar__circle {
     width: 56px;
     height: 56px;
-    font-size: 1.25rem;
   }
 
-  .participant-avatar--large .participant-avatar__name {
-    font-size: 12px;
-    max-width: 120px;
+  .participant-avatar--large .participant-avatar__initials {
+    font-size: 20px;
+  }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .toolbar-btn--record.toolbar-btn--active {
+    animation: none;
   }
 
-  .gmeet-room__self-view {
-    bottom: 10px;
-    right: 10px;
-    border-radius: var(--radius-sm);
-  }
-
-  .self-view__name-label {
-    font-size: 9px;
-    padding: 2px 6px;
-  }
-
-  .self-view__muted-badge {
-    width: 20px;
-    height: 20px;
-    font-size: 9px;
-  }
-
-  .gmeet-room__controls {
-    padding: 0 0.75rem;
-    gap: 6px;
-  }
-
-  .gmeet-room__secondary-strip {
-    height: 80px;
-  }
-
-  .gmeet-room__secondary-strip .remote-tile {
-    width: 110px;
+  .toolbar-btn:active {
+    transform: none;
   }
 }
