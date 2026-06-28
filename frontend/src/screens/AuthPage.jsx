@@ -211,12 +211,19 @@ const AuthPage = ({ onAuthSuccess }) => {
         <div className="auth-page">
             {/* Left intro panel */}
             <section className="auth-intro">
-                <h1>
-                    Where <em>conversations</em> create momentum.
-                </h1>
-                <div className="auth-intro-footnote">
-                    <span className="auth-intro-dot">Audio Watermarking</span>
-                    <span className="auth-intro-dot">Confidentiality Chain in File Sharing</span>
+                <div className="auth-intro-content">
+                    <div className="auth-intro-text">
+                        <h1>
+                            Where <em>conversations</em> create momentum.
+                        </h1>
+                        <div className="auth-intro-footnote">
+                            <span className="auth-intro-dot">Audio Watermarking</span>
+                            <span className="auth-intro-dot">Confidentiality Chain in File Sharing</span>
+                        </div>
+                    </div>
+                    <div className="auth-intro-image">
+                        <img src="/auth.png" alt="Convo illustration" />
+                    </div>
                 </div>
             </section>
 
