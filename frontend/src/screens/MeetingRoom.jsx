@@ -5,6 +5,7 @@ import "./MeetingRoom.css";
 import createProcessedStream from "../audio/audioWorkletSetup";
 import useMeetingRecording from "../meeting/useMeetingRecording";
 import { getAuthToken } from "../auth/authSession";
+import MeetingChat from "./MeetingChat";
 
 const WS_URL = import.meta.env.VITE_WS_BASE_URL;
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
@@ -145,6 +146,9 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   const [peers, setPeers] = useState([]);
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+
   const navigate = useNavigate();
 
   const {
@@ -505,6 +509,22 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
             break;
           }
 
+          case "chat":
+            setChatMessages((prev) => [
+              ...prev,
+              {
+                id: Date.now() + Math.random(),
+                from: data.from,
+                fromName: data.fromName,
+                // if it's a DM arriving here, normalize 'to' to our userId
+                to: data.to === "__everyone__" ? "__everyone__" : userId,
+                text: data.text,
+                time: data.time,
+                isMine: false,
+              },
+            ]);
+            break;
+
           case "peer-left":
             removePeer(data.peerId);
             break;
@@ -720,7 +740,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         {/* 4. Chat (placeholder — functionality not yet implemented) */}
         <button
           className="toolbar-btn toolbar-btn--chat"
-          onClick={() => {}}
+          onClick={() => setIsChatOpen(prev => !prev)}
           aria-label="Open chat"
         >
           {/* Speech bubble */}
@@ -746,7 +766,17 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         </button>
 
       </footer>
-
+      <MeetingChat
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+        wsRef={wsRef}
+        roomId={roomId}
+        peers={peers}
+        peerNames={peerNames}
+        currentUser={{ id: userId, displayName: authUser.displayName }}
+        chatMessages={chatMessages}
+        onSend={(msg) => setChatMessages((prev) => [...prev, { ...msg, isMine: true }])}
+      />
     </div>
   );
 };
@@ -766,4 +796,4 @@ MeetingRoom.propTypes = {
   }).isRequired,
 };
 
-export default MeetingRoom;
+export default MeetingRoom; 
