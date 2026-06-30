@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./WatermarkTestPage.css";
+import PropTypes from "prop-types";
 
 const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL;
 
@@ -17,6 +18,12 @@ const Row = ({ label, value, highlight }) => (
     <span className={`wt-row-value${highlight ? " wt-row-highlight" : ""}`}>{value}</span>
   </div>
 );
+
+Row.propTypes = {
+  label: PropTypes.string.isRequired,
+  value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+  highlight: PropTypes.bool,
+};
 
 export default function WatermarkTestPage() {
   const navigate = useNavigate();
