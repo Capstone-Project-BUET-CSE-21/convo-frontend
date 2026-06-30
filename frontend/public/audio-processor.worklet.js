@@ -3,6 +3,14 @@ class AudioProcessor extends AudioWorkletProcessor {
     super();
     this._bufferSize = 256;
     this._capacity = 4096;
+    this._analysisSize = config.analysisWindowSize || 512;
+    this.sampleRate = config.sampleRate || 48000;
+
+    // Guard against a silently-invalid sample rate (this previously caused
+    // the bin->band map to collapse to band 0 for every bin — see fix below).
+    if (!Number.isFinite(this.sampleRate) || this.sampleRate <= 0) {
+      throw new Error("AudioProcessor: invalid sampleRate in processorOptions");
+    }
 
     // Input ring buffer
     this._inBuf = new Float32Array(this._capacity);
@@ -15,6 +23,52 @@ class AudioProcessor extends AudioWorkletProcessor {
     this._outWrite = 0;
     this._outRead = 0;
     this._outFilled = 0;
+
+    // Watermark config
+    // this._alpha = config.alpha || 0.005;
+    // this._seed = config.seed || 42;
+    // this._pn = _generatePN(this._seed, this._bufferSize);
+
+    // Analysis ring buffer: holds last `analysisSize` samples (current hop + previous hop)
+    this._analysisBuf = new Float32Array(this._analysisSize);
+
+    // OLA accumulator: must be at least analysisSize long; we add windowed watermark frames into it
+    this._olaAcc = new Float32Array(this._analysisSize);
+
+    this._window = _hannWindow(this._analysisSize); // also used as synthesis window (Hann @ 50% overlap = COLA)
+
+    // Masking policy params (replaces constant alpha)
+    this._marginLinear = Math.pow(10, (config.alpha ?? 1) / 20); // dB -> linear amplitude scale
+    this._seed = config.seed || 42;
+    this._rand = _createMulberry32(
+      typeof this._seed === "string"
+        ? _hashString(this._seed)
+        : this._seed >>> 0,
+    );
+
+    // Precompute Bark band edges -> FFT bin index lookup (done once, not per-frame)
+    this._numBands = config.numBands || 24;
+    this._binToBand = this._buildBinToBandMap(
+      this._analysisSize,
+      this.sampleRate, // FIX: was `this._sampleRate` (never assigned -> undefined),
+                        // which made _hzToBark/_buildBinToBandMap produce NaN for
+                        // every bin. Assigning NaN into the Int32Array `map`
+                        // silently coerced to 0, so every frequency bin was mapped
+                        // to band 0 instead of the proper 24-band Bark mapping.
+                        // This corrupted the masking-threshold shaping for the
+                        // entire embedded watermark, which is why detection
+                        // correlation was ~0 for every user regardless of seed.
+      this._numBands,
+    );
+
+    // Scratch buffers reused every frame (avoid allocation in the hot path)
+    this._re = new Float32Array(this._analysisSize);
+    this._im = new Float32Array(this._analysisSize);
+    this._pnRe = new Float32Array(this._analysisSize);
+    this._pnIm = new Float32Array(this._analysisSize);
+    this._bandEnergy = new Float32Array(this._numBands);
+    this._bandFlatness = new Float32Array(this._numBands);
+    this._bandThreshold = new Float32Array(this._numBands);
   }
 
   _pushIn(samples) {
@@ -84,7 +138,7 @@ class AudioProcessor extends AudioWorkletProcessor {
     if (this._outFilled >= frameSize) {
       this._pullOut(outputChannel);
     } else {
-      // Truly nothing available — output silence
+      // Truly nothing available — output silence uwu
       outputChannel.fill(0);
     }
 
