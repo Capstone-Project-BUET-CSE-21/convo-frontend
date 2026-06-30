@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import "./MeetingChat.css";
+import ChatFileShare from "../components/ChatFileShare";
+import ChatFileBubble from "../components/ChatFileBubble";
 
 const EVERYONE = "__everyone__";
 
@@ -213,7 +215,18 @@ const MeetingChat = ({ isOpen, onClose, wsRef, roomId, peers, peerNames, current
                   {!m.isMine && (
                     <span className="chat-bubble__sender">{m.fromName || "Guest"}</span>
                   )}
-                  <div className="chat-bubble__text">{m.text}</div>
+
+                  {m.type === "file" ? (
+                    <ChatFileBubble
+                      fileUrl={m.fileUrl}
+                      fileName={m.fileName}
+                      fileType={m.fileType}
+                      fileSize={m.fileSize}
+                    />
+                  ) : (
+                    <div className="chat-bubble__text">{m.text}</div>
+                  )}
+
                   <span className="chat-bubble__time">
                     {new Date(m.time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                   </span>
@@ -225,6 +238,18 @@ const MeetingChat = ({ isOpen, onClose, wsRef, roomId, peers, peerNames, current
 
           {/* Input */}
           <div className="chat-input-row">
+            <ChatFileShare
+              roomId={roomId}
+              currentUser={currentUser}
+              activeThread={activeThread}
+              onFileSent={(msg) => {
+                if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+                  wsRef.current.send(JSON.stringify(msg));
+                }
+                onSend(msg);
+              }}
+            />
+
             <textarea
               ref={inputRef}
               className="chat-input"
@@ -236,13 +261,13 @@ const MeetingChat = ({ isOpen, onClose, wsRef, roomId, peers, peerNames, current
               aria-label="Type a message"
             />
             <button
-  className="chat-send-btn"
-  onClick={sendMessage}
-  disabled={!draft.trim()}
-  aria-label="Send message"
->
-  <img src="/send.png" alt="Send" width="16" height="16" />
-</button>
+              className="chat-send-btn"
+              onClick={sendMessage}
+              disabled={!draft.trim()}
+              aria-label="Send message"
+            >
+              <img src="/send.png" alt="Send" width="16" height="16" />
+            </button>
           </div>
         </div>
 

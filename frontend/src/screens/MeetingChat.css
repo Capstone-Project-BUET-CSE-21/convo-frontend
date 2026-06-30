@@ -14,7 +14,7 @@
   font-family: var(--font-body);
   animation: chatSlideIn 0.7s var(--ease-out) both;
   top: 60px;       /* height of your meeting header — adjust if needed */
-  bottom: 80px; 
+  bottom: 96px;    /* nudged up from 80px so the panel clears the meeting toolbar */
 }
 
 @keyframes chatSlideIn {
