@@ -42,6 +42,7 @@ const MeetingChat = ({ isOpen, onClose, wsRef, roomId, peers, peerNames, current
     const threadIds = [EVERYONE, ...peers];
     const anyUnread = threadIds.some((id) => isThreadUnread(id, readUpTo));
     onUnreadChange(anyUnread);
+    // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
   }, [chatMessages, readUpTo, peers]);
 
   // ── Auto-scroll ──────────────────────────────────────────────────────────
@@ -56,10 +57,16 @@ const MeetingChat = ({ isOpen, onClose, wsRef, roomId, peers, peerNames, current
     if (isOpen) setTimeout(() => inputRef.current?.focus(), 100);
   }, [isOpen, activeThread]);
 
-  // ── Mark active thread as read whenever messages change or panel opens ───
+  // ── Mark thread as read ───────────────────────────────────────────────────
+  // Triggered when switching threads (click handlers below) and whenever
+  // new messages arrive for the open thread while the panel is visible.
+  // This is the "subscribe to an external system and react to its updates"
+  // case React's docs call out as a valid use of setState-in-effect, so we
+  // suppress the lint rule here rather than work around it artificially.
 
   useEffect(() => {
     if (isOpen) markRead(activeThread);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
   }, [chatMessages, activeThread, isOpen]);
 
   // ── Send ─────────────────────────────────────────────────────────────────
