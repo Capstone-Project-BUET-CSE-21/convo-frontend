@@ -203,7 +203,7 @@ const MeetingChat = ({ isOpen, onClose, wsRef, roomId, peers, peerNames, current
 
           <div className="chat-messages__list">
             {visibleMessages.length === 0 ? (
-              <p className="chat-messages__empty">No messages yet. Say hi 👋</p>
+              <p className="chat-messages__empty">No messages yet.</p>
             ) : (
               visibleMessages.map((m) => (
                 <div
@@ -236,16 +236,13 @@ const MeetingChat = ({ isOpen, onClose, wsRef, roomId, peers, peerNames, current
               aria-label="Type a message"
             />
             <button
-              className="chat-send-btn"
-              onClick={sendMessage}
-              disabled={!draft.trim()}
-              aria-label="Send message"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13"></line>
-                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-              </svg>
-            </button>
+  className="chat-send-btn"
+  onClick={sendMessage}
+  disabled={!draft.trim()}
+  aria-label="Send message"
+>
+  <img src="/send.png" alt="Send" width="16" height="16" />
+</button>
           </div>
         </div>
 
