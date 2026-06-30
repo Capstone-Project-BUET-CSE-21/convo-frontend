@@ -612,6 +612,25 @@
   color: rgba(255, 255, 255, 0.75);
 }
 
+/* Wrap the icon so the dot can anchor to the icon itself, not the whole button */
+.toolbar-btn--chat .toolbar-btn__icon-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Unread chat indicator — lavender dot, positioned at the icon's top-right corner */
+.toolbar-btn--chat .toolbar-btn__unread-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--brand-deep);
+  box-shadow: 0 0 0 3px var(--surface-toolbar);
+  pointer-events: none;
+}
+
 /* Leave — red, always visible */
 .toolbar-btn--leave {
   color: #fff;

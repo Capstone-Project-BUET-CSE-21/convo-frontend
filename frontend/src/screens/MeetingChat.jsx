@@ -4,11 +4,45 @@ import "./MeetingChat.css";
 
 const EVERYONE = "__everyone__";
 
-const MeetingChat = ({ isOpen, onClose, wsRef, roomId, peers, peerNames, currentUser, chatMessages, onSend }) => {
+const MeetingChat = ({ isOpen, onClose, wsRef, roomId, peers, peerNames, currentUser, chatMessages, onSend, onUnreadChange }) => {
   const [activeThread, setActiveThread] = useState(EVERYONE);
   const [draft, setDraft] = useState("");
+  const [readUpTo, setReadUpTo] = useState({});
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
+
+  // ── Mark thread as read ───────────────────────────────────────────────────
+
+  const markRead = (threadId) => {
+    const latest = chatMessages
+      .filter(m => !m.isMine && (
+        threadId === EVERYONE ? m.to === EVERYONE : m.from === threadId
+      ))
+      .at(-1)?.time ?? 0;
+
+    setReadUpTo(prev => ({ ...prev, [threadId]: Math.max(prev[threadId] ?? 0, latest) }));
+  };
+
+  // ── Unread check across ALL threads (everyone + every peer DM) ───────────
+
+  const isThreadUnread = (threadId, watermarks) => {
+    const watermark = watermarks[threadId] ?? 0;
+    return chatMessages.some((m) => {
+      if (m.isMine) return false;
+      if (m.time <= watermark) return false;
+      if (threadId === EVERYONE) return m.to === EVERYONE;
+      return m.from === threadId && m.to === currentUser.id;
+    });
+  };
+
+  // ── Report "any unread" up to parent whenever messages or watermarks change ──
+
+  useEffect(() => {
+    if (!onUnreadChange) return;
+    const threadIds = [EVERYONE, ...peers];
+    const anyUnread = threadIds.some((id) => isThreadUnread(id, readUpTo));
+    onUnreadChange(anyUnread);
+  }, [chatMessages, readUpTo, peers]);
 
   // ── Auto-scroll ──────────────────────────────────────────────────────────
 
@@ -21,6 +55,12 @@ const MeetingChat = ({ isOpen, onClose, wsRef, roomId, peers, peerNames, current
   useEffect(() => {
     if (isOpen) setTimeout(() => inputRef.current?.focus(), 100);
   }, [isOpen, activeThread]);
+
+  // ── Mark active thread as read whenever messages change or panel opens ───
+
+  useEffect(() => {
+    if (isOpen) markRead(activeThread);
+  }, [chatMessages, activeThread, isOpen]);
 
   // ── Send ─────────────────────────────────────────────────────────────────
 
@@ -42,7 +82,7 @@ const MeetingChat = ({ isOpen, onClose, wsRef, roomId, peers, peerNames, current
       wsRef.current.send(JSON.stringify(msg));
     }
 
-    onSend(msg); // optimistic append via parent
+    onSend(msg);
     setDraft("");
   };
 
@@ -56,10 +96,12 @@ const MeetingChat = ({ isOpen, onClose, wsRef, roomId, peers, peerNames, current
   // ── Derived: unread counts ───────────────────────────────────────────────
 
   const unreadCount = (threadId) => {
+    const watermark = readUpTo[threadId] ?? 0;
     return chatMessages.filter((m) => {
       if (m.isMine) return false;
-      if (threadId === EVERYONE) return m.to === EVERYONE && activeThread !== EVERYONE;
-      return m.from === threadId && m.to === currentUser.id && activeThread !== threadId;
+      if (m.time <= watermark) return false;
+      if (threadId === EVERYONE) return m.to === EVERYONE;
+      return m.from === threadId && m.to === currentUser.id;
     }).length;
   };
 
@@ -106,7 +148,7 @@ const MeetingChat = ({ isOpen, onClose, wsRef, roomId, peers, peerNames, current
           {showEveryone && (
             <button
               className={`chat-thread ${activeThread === EVERYONE ? "chat-thread--active" : ""}`}
-              onClick={() => setActiveThread(EVERYONE)}
+              onClick={() => { setActiveThread(EVERYONE); markRead(EVERYONE); }}
             >
               <span className="chat-thread__avatar chat-thread__avatar--everyone">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -131,7 +173,7 @@ const MeetingChat = ({ isOpen, onClose, wsRef, roomId, peers, peerNames, current
               <button
                 key={peerId}
                 className={`chat-thread ${activeThread === peerId ? "chat-thread--active" : ""}`}
-                onClick={() => setActiveThread(peerId)}
+                onClick={() => { setActiveThread(peerId); markRead(peerId); }}
               >
                 <span className="chat-thread__avatar">{initials}</span>
                 <span className="chat-thread__name">{name}</span>
@@ -218,6 +260,7 @@ MeetingChat.propTypes = {
   }).isRequired,
   chatMessages: PropTypes.array.isRequired,
   onSend: PropTypes.func.isRequired,
+  onUnreadChange: PropTypes.func,
 };
 
 export default MeetingChat;
