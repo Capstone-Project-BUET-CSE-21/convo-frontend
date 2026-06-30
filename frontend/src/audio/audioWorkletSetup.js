@@ -1,4 +1,4 @@
-export async function createProcessedStream(rawStream) {
+const createProcessedStream = async (rawStream, config) => {
   const audioContext = new AudioContext();
 
   if (audioContext.state === 'suspended') {
@@ -16,7 +16,8 @@ export async function createProcessedStream(rawStream) {
   const workletNode = new AudioWorkletNode(audioContext, 'audio-processor', {
     numberOfInputs: 1,
     numberOfOutputs: 1,
-    outputChannelCount: [1]
+    outputChannelCount: [1],
+    processorOptions: config
   });
 
   const destination = audioContext.createMediaStreamDestination();
@@ -40,5 +41,7 @@ export async function createProcessedStream(rawStream) {
   processedStream._audioContext = audioContext;
   processedStream._gainNode = gainNode;
 
-  return processedStream;
+  return { stream: processedStream, audioContext, workletNode };
 }
+
+export default createProcessedStream;

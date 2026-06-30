@@ -1,0 +1,842 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,300&display=swap');
+
+/* ============================================================
+   Design tokens — mirrors AuthPage.css so the system is shared
+   ============================================================ */
+
+:root {
+  --brand: #805ae6;
+  --brand-deep: #aa8aff;
+  --brand-light: #EBE9FF;
+  --ink: #0D0D12;
+  --ink-muted: #6B6A7A;
+  --ink-subtle: #A09FB0;
+  --surface: #FFFFFF;
+  --surface-raised: #FAFAF9;
+  --surface-room: #0f0f14;        /* near-black stage background */
+  --surface-tile: #1a1a24;        /* individual participant card */
+  --surface-tile-hover: #22222f;
+  --surface-toolbar: rgba(15, 15, 20, 0.92);
+  --surface-header: rgba(15, 15, 20, 0.88);
+  --border: rgba(13, 13, 18, 0.08);
+  --border-mid: rgba(13, 13, 18, 0.14);
+  --border-room: rgba(255, 255, 255, 0.06);
+  --red: #E5484D;
+  --red-soft: rgba(229, 72, 77, 0.15);
+  --green: #30A46C;
+  --green-soft: rgba(48, 164, 108, 0.15);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --radius-xl: 28px;
+  --font-display: 'DM Serif Display', Georgia, serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.45, 0, 0.55, 1);
+
+  /* toolbar geometry */
+  --toolbar-height: 80px;
+  --header-height: 56px;
+}
+
+
+/* ============================================================
+   Room shell
+   ============================================================ */
+
+.meeting-room {
+  font-family: var(--font-body);
+  display: grid;
+  grid-template-rows: var(--header-height) 1fr var(--toolbar-height);
+  min-height: 100vh;
+  background: var(--surface-room);
+  color: #fff;
+  overflow: hidden;
+}
+
+
+/* ============================================================
+   Header
+   ============================================================ */
+
+.meeting-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  background: var(--surface-header);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-room);
+  gap: 1rem;
+  z-index: 10;
+}
+
+.meeting-header__room-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.meeting-header__room-label {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-subtle);
+}
+
+.meeting-header__room-id {
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-room);
+  border-radius: var(--radius-sm);
+  padding: 3px 10px;
+  letter-spacing: 0.04em;
+}
+
+.meeting-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Copy buttons — same visual language as Homepage meeting-id-action-btn */
+.meeting-header__copy-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.6);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-room);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  white-space: nowrap;
+}
+
+.meeting-header__copy-btn svg {
+  flex-shrink: 0;
+  stroke: currentColor;
+}
+
+.meeting-header__copy-btn:hover {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.meeting-header__copy-btn--success {
+  color: var(--green);
+  background: var(--green-soft);
+  border-color: rgba(48, 164, 108, 0.25);
+}
+
+.meeting-header__copy-btn--success:hover {
+  color: var(--green);
+  background: var(--green-soft);
+}
+
+
+/* ============================================================
+   Gallery stage
+   ============================================================ */
+
+.meeting-stage {
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+  padding: 12px;
+}
+
+
+/* ── Participants grid ── */
+
+/*
+  The grid fills the entire stage. Tiles always occupy all available space.
+  aspect-ratio on cards is only applied for counts > 1 (via the card rule below).
+  Columns are set per data-tile-count; rows are left implicit so the browser
+  fills them evenly.
+
+  Column mapping (optimised for maximising tile size):
+    1        → 1 col  (full-screen, no aspect-ratio lock)
+    2        → 2 cols (side by side, full height)
+    3        → 2 cols (3rd tile centred via auto margin)
+    4        → 2 cols (perfect 2×2)
+    5–6      → 3 cols
+    7–9      → 3 cols
+    10–12    → 4 cols
+    13–16    → 4 cols
+    17–20    → 5 cols
+*/
+
+.participants-grid {
+  flex: 1;
+  display: grid;
+  gap: 10px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+
+  /* default: 1 participant — single tile, fill everything */
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+  align-items: stretch;
+  justify-items: stretch;
+}
+
+/* ── 2: two equal columns, full height ── */
+.participants-grid[data-tile-count="2"] {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: 1fr;
+}
+
+/* ── 3: 2 columns; the third card centres itself ── */
+.participants-grid[data-tile-count="3"] {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+/* The third child in a 3-participant grid spans both columns
+   and is constrained to a natural width so it stays centred */
+.participants-grid[data-tile-count="3"] .participant-card:nth-child(3) {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: 50%;
+}
+
+/* ── 4: 2×2 ── */
+.participants-grid[data-tile-count="4"] {
+  grid-template-columns: repeat(2, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+/* ── 5–6: 3 columns, 2 rows ── */
+.participants-grid[data-tile-count="5"],
+.participants-grid[data-tile-count="6"] {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+}
+
+/* Centre the lone last tile when count is 5 */
+.participants-grid[data-tile-count="5"] .participant-card:nth-child(5) {
+  grid-column: 2 / 3;
+}
+
+/* ── 7–9: 3 columns, 3 rows ── */
+.participants-grid[data-tile-count="7"],
+.participants-grid[data-tile-count="8"],
+.participants-grid[data-tile-count="9"] {
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+
+/* Centre the lone last tile at 7 */
+.participants-grid[data-tile-count="7"] .participant-card:nth-child(7) {
+  grid-column: 2 / 3;
+}
+
+/* ── 10–12: 4 columns, 3 rows ── */
+.participants-grid[data-tile-count="10"],
+.participants-grid[data-tile-count="11"],
+.participants-grid[data-tile-count="12"] {
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+}
+
+/* ── 13–16: 4 columns, 4 rows ── */
+.participants-grid[data-tile-count="13"],
+.participants-grid[data-tile-count="14"],
+.participants-grid[data-tile-count="15"],
+.participants-grid[data-tile-count="16"] {
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+}
+
+/* ── 17–20: 5 columns, 4 rows ── */
+.participants-grid[data-tile-count="17"],
+.participants-grid[data-tile-count="18"],
+.participants-grid[data-tile-count="19"],
+.participants-grid[data-tile-count="20"] {
+  grid-template-columns: repeat(5, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+}
+
+/* ── 21+: safety fallback — auto-fill with minimum tile width ── */
+.participants-grid[data-tile-count]:not(
+  [data-tile-count="1"],
+  [data-tile-count="2"],
+  [data-tile-count="3"],
+  [data-tile-count="4"],
+  [data-tile-count="5"],
+  [data-tile-count="6"],
+  [data-tile-count="7"],
+  [data-tile-count="8"],
+  [data-tile-count="9"],
+  [data-tile-count="10"],
+  [data-tile-count="11"],
+  [data-tile-count="12"],
+  [data-tile-count="13"],
+  [data-tile-count="14"],
+  [data-tile-count="15"],
+  [data-tile-count="16"],
+  [data-tile-count="17"],
+  [data-tile-count="18"],
+  [data-tile-count="19"],
+  [data-tile-count="20"]
+) {
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-rows: unset;
+}
+
+/* Waiting message — spans the full grid when the local user is alone */
+.participants-grid__waiting {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.participants-grid__waiting-text {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--ink-subtle);
+  letter-spacing: 0.02em;
+}
+
+
+/* ── Participant card ── */
+
+.participant-card {
+  position: relative;
+  background: var(--surface-tile);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-room);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* No aspect-ratio by default — tiles fill the grid cell fully */
+  min-width: 0;
+  min-height: 0;
+  transition: border-color 0.2s ease;
+}
+
+/*
+  For counts > 1, enforce 16/9 so tiles don't become awkward slivers
+  when the grid has more columns than rows.
+  For count = 1, we deliberately skip this so the single tile fills
+  the entire stage vertically and horizontally.
+*/
+.participants-grid[data-tile-count]:not([data-tile-count="1"]) .participant-card {
+  aspect-ratio: 16/9;
+}
+
+.participant-card:hover {.meeting-toolbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+
+  height: var(--toolbar-height);
+  padding: 0 1.5rem;
+
+  background: var(--surface-toolbar);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  border-top: 1px solid var(--border-room);
+  z-index: 1000;
+}
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Self-tile: subtle brand tint on the border */
+.participant-card--self {
+  border-color: rgba(128, 90, 230, 0.3);
+}
+
+.participant-card--self:hover {
+  border-color: rgba(128, 90, 230, 0.5);
+}
+
+
+/* ── Participant video ── */
+
+.participant-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  transform: scaleX(-1);
+}
+
+.participant-video--hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+
+/* ── Participant name label ── */
+
+.participant-label {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+  max-width: calc(100% - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+
+/* ── Muted mic indicator on tile ── */
+
+.participant-muted-indicator {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: var(--red-soft);
+  border: 1px solid rgba(229, 72, 77, 0.3);
+  border-radius: 50%;
+  color: var(--red);
+  pointer-events: none;
+}
+
+.participant-muted-indicator svg {
+  stroke: currentColor;
+}
+
+
+/* ============================================================
+   Participant avatar (camera off state)
+   ============================================================ */
+
+.participant-avatar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.participant-avatar__circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-deep) 100%);
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.participant-avatar--large .participant-avatar__circle {
+  width: 96px;
+  height: 96px;
+}
+
+.participant-avatar--small .participant-avatar__circle {
+  width: 55px;
+  height: 55px;
+}
+
+.participant-avatar__initials {
+  font-family: var(--font-body);
+  font-weight: 500;
+  color: #fff;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+
+.participant-avatar--large .participant-avatar__initials {
+  font-size: 36px;
+}
+
+.participant-avatar--small .participant-avatar__initials {
+  font-size: 20px;
+}
+
+/* The name below the avatar circle — hidden inside tiles
+   because participant-label covers the name job there */
+.participant-avatar__name {
+  display: none;
+}
+
+
+/* ============================================================
+   Bottom toolbar
+   ============================================================ */
+
+.meeting-toolbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+
+  height: var(--toolbar-height);
+  padding: 0 1.5rem;
+
+  background: var(--surface-toolbar);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  border-top: 1px solid var(--border-room);
+  z-index: 1000;
+}
+
+/* ── Base toolbar button ── */
+
+.toolbar-btn {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 56px;
+  height: 56px;
+  padding: 0 10px;
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+  white-space: nowrap;
+  user-select: none;
+}
+
+.toolbar-btn svg {
+  stroke: currentColor;
+  flex-shrink: 0;
+  transition: stroke 0.15s ease;
+}
+
+.toolbar-btn:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--border-room);
+}
+
+.toolbar-btn:active {
+  transform: scale(0.95);
+}
+
+.toolbar-btn__label {
+  line-height: 1;
+}
+
+
+/* ── States ── */
+
+/* Mic / camera disabled — red tint */
+.toolbar-btn--off {
+  color: var(--red);
+  background: var(--red-soft);
+  border-color: rgba(229, 72, 77, 0.2);
+}
+
+.toolbar-btn--off:hover {
+  color: var(--red);
+  background: rgba(229, 72, 77, 0.22);
+  border-color: rgba(229, 72, 77, 0.3);
+}
+
+/* Recording in progress — pulsing red dot feel via brand accent */
+.toolbar-btn--record.toolbar-btn--active {
+  color: var(--red);
+  background: var(--red-soft);
+  border-color: rgba(229, 72, 77, 0.2);
+  animation: recordPulse 2s var(--ease-in-out) infinite;
+}
+
+@keyframes recordPulse {
+  0%, 100% { background: var(--red-soft); }
+  50% { background: rgba(229, 72, 77, 0.25); }
+}
+
+/* Download — brand tint */
+.toolbar-btn--download {
+  color: var(--brand-deep);
+}
+
+.toolbar-btn--download:hover {
+  color: var(--brand-deep);
+  background: rgba(128, 90, 230, 0.12);
+  border-color: rgba(128, 90, 230, 0.2);
+}
+
+/* Chat — neutral */
+.toolbar-btn--chat {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+/* Wrap the icon so the dot can anchor to the icon itself, not the whole button */
+.toolbar-btn--chat .toolbar-btn__icon-wrap {
+  position: relative;
+  display: inline-flex;
+}
+
+/* Unread chat indicator — lavender dot, positioned at the icon's top-right corner */
+.toolbar-btn--chat .toolbar-btn__unread-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--brand-deep);
+  box-shadow: 0 0 0 3px var(--surface-toolbar);
+  pointer-events: none;
+}
+
+/* Leave — red, always visible */
+.toolbar-btn--leave {
+  color: #fff;
+  background: var(--red);
+  border-color: transparent;
+  min-width: 64px;
+  margin-left: 12px;
+}
+
+.toolbar-btn--leave:hover {
+  background: #cc2d31;
+  border-color: transparent;
+  color: #fff;
+}
+
+.toolbar-btn--leave:active {
+  background: #b52428;
+}
+
+/* Record + Download grouped side by side */
+.toolbar-btn-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+
+/* Tablet */
+@media (max-width: 900px) {
+  :root {
+    --toolbar-height: 72px;
+    --header-height: 52px;
+  }
+
+  .meeting-stage {
+    padding: 8px;
+  }
+
+  .participants-grid {
+    gap: 8px;
+  }
+
+  /* Collapse 3-col layouts to 2 columns on tablet */
+  .participants-grid[data-tile-count="5"],
+  .participants-grid[data-tile-count="6"],
+  .participants-grid[data-tile-count="7"],
+  .participants-grid[data-tile-count="8"],
+  .participants-grid[data-tile-count="9"] {
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: unset;
+  }
+
+  /* Collapse 4-col layouts to 3 columns on tablet */
+  .participants-grid[data-tile-count="10"],
+  .participants-grid[data-tile-count="11"],
+  .participants-grid[data-tile-count="12"],
+  .participants-grid[data-tile-count="13"],
+  .participants-grid[data-tile-count="14"],
+  .participants-grid[data-tile-count="15"],
+  .participants-grid[data-tile-count="16"] {
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: unset;
+  }
+
+  /* Collapse 5-col layouts to 4 columns on tablet */
+  .participants-grid[data-tile-count="17"],
+  .participants-grid[data-tile-count="18"],
+  .participants-grid[data-tile-count="19"],
+  .participants-grid[data-tile-count="20"] {
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: unset;
+  }
+
+  /* Reset any desktop nth-child centering — let tiles flow naturally */
+  .participants-grid[data-tile-count="5"] .participant-card:nth-child(5),
+  .participants-grid[data-tile-count="7"] .participant-card:nth-child(7) {
+    grid-column: unset;
+  }
+
+  /* The 3-participant lone tile still centres in 2-col layout */
+  .participants-grid[data-tile-count="3"] .participant-card:nth-child(3) {
+    width: 60%;
+  }
+
+  .toolbar-btn {
+    min-width: 48px;
+    height: 48px;
+    font-size: 9px;
+    gap: 3px;
+  }
+
+  .toolbar-btn--leave {
+    min-width: 52px;
+  }
+
+  .meeting-header__room-id {
+    max-width: 140px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* Phone */
+@media (max-width: 600px) {
+  :root {
+    --toolbar-height: auto;
+    --header-height: 48px;
+  }
+
+  .meeting-room {
+    grid-template-rows: var(--header-height) 1fr auto;
+  }
+
+  .meeting-header {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 8px 12px;
+    gap: 6px;
+  }
+
+  .meeting-header__actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .meeting-header__copy-btn {
+    height: 28px;
+    font-size: 11px;
+    padding: 0 10px;
+  }
+
+  .meeting-stage {
+    padding: 6px;
+  }
+
+  .participants-grid {
+    gap: 6px;
+    /* All counts: single column on phone */
+    grid-template-columns: 1fr !important;
+    grid-template-rows: unset !important;
+  }
+
+  /* Reset all desktop centering tricks on mobile — just stack */
+  .participants-grid .participant-card:nth-child(n) {
+    grid-column: unset;
+    justify-self: unset;
+    width: 100%;
+  }
+
+  /* Restore aspect-ratio on all tiles when stacked vertically */
+ .participants-grid[data-tile-count]:not([data-tile-count="1"]) .participant-card {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+}
+
+  .meeting-toolbar {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 12px;
+  }
+
+  .toolbar-btn {
+    min-width: 52px;
+    height: 52px;
+    font-size: 9px;
+  }
+
+  .toolbar-btn--leave {
+    margin-left: 0;
+  }
+
+  .participant-card {
+    border-radius: var(--radius-md);
+  }
+
+  .participant-label {
+    font-size: 11px;
+    bottom: 8px;
+    left: 8px;
+  }
+
+  .participant-avatar--large .participant-avatar__circle {
+    width: 56px;
+    height: 56px;
+  }
+
+  .participant-avatar--large .participant-avatar__initials {
+    font-size: 20px;
+  }
+}
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .toolbar-btn--record.toolbar-btn--active {
+    animation: none;
+  }
+
+  .toolbar-btn:active {
+    transform: none;
+  }
+}

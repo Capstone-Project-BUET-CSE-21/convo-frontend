@@ -1,0 +1,62 @@
+name: Frontend CI - Main
+
+on:
+    pull_request:
+        branches:
+            - main
+        paths:
+            - "frontend/**"
+            - ".github/workflows/ci-main.yml"
+    push:
+        branches:
+            - main
+        paths:
+            - "frontend/**"
+            - ".github/workflows/ci-main.yml"
+
+permissions:
+    contents: read
+
+concurrency:
+    group: frontend-deploy-main
+    cancel-in-progress: true
+
+jobs:
+    test:
+        name: Test and Build
+        runs-on: ubuntu-latest
+        defaults:
+            run:
+                working-directory: frontend
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Setup Node.js
+              uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+                  cache: npm
+                  cache-dependency-path: frontend/package-lock.json
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Run frontend checks
+              run: npm test
+
+    deploy-main:
+        name: Deploy Main to Vercel
+        needs: test
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        runs-on: ubuntu-latest
+        environment: staged
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Trigger Vercel deploy hook
+              run: npx vercel --prod --token=${{ secrets.VERCEL_TOKEN_MAIN }}
+              env:
+                  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID_MAIN }}
+                  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID_MAIN }}

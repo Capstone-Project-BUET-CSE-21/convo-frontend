@@ -1,0 +1,314 @@
+import { useEffect, useRef, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import PropTypes from "prop-types";
+import "./Homepage.css"; // Import your CSS file
+import { AuthSidebar } from "../components/SharedComponents";
+
+const Homepage = ({ homepageAttributes }) => {
+    const location = useLocation();
+    const { authUser, commandPair, isAudioEnabledPair, isVideoEnabledPair, handleLogout } = homepageAttributes;
+    const { command, setCommand } = commandPair;
+    const { isAudioEnabled, setIsAudioEnabled } = isAudioEnabledPair;
+    const { isVideoEnabled, setIsVideoEnabled } = isVideoEnabledPair;
+
+    const [isEnteringMeetingId, setIsEnteringMeetingId] = useState(false);
+    const [meetingId, setMeetingId] = useState("");
+    const [copied, setCopied] = useState(false);
+    const [copiedLink, setCopiedLink] = useState(false);
+
+    const localVideoRef = useRef(null);
+    const navigate = useNavigate();
+
+    const getMeetingLink = (id) => `https://convo-frontend-nine.vercel.app/room/${id}`;
+
+    const generateMeetingId = () => {
+        return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    };
+
+    const startMeeting = () => {
+        const newMeetingId = generateMeetingId();
+        setMeetingId(newMeetingId);
+        setCommand("Start");
+        setIsEnteringMeetingId(true);
+    };
+
+    const joinMeeting = () => {
+        setCommand("Join");
+        setIsEnteringMeetingId(true);
+    };
+
+    const goBack = () => {
+        setIsEnteringMeetingId(false);
+        setMeetingId("");
+        setCommand("");
+        setCopied(false);
+        setCopiedLink(false);
+    };
+
+    const copyMeetingId = async () => {
+        try {
+            await navigator.clipboard.writeText(meetingId);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (err) {
+            console.error("Failed to copy meeting ID:", err);
+        }
+    };
+
+    const copyMeetingLink = async () => {
+        try {
+            await navigator.clipboard.writeText(getMeetingLink(meetingId));
+            setCopiedLink(true);
+            setTimeout(() => setCopiedLink(false), 2000);
+        } catch (err) {
+            console.error("Failed to copy meeting link:", err);
+        }
+    };
+
+    const handleJoinOrStart = () => {
+        if (meetingId.trim()) {
+            navigate(`/room/${meetingId}`);
+        }
+    };
+
+    const toggleAudio = () => {
+        const stream = localVideoRef.current?.srcObject;
+        if (stream) {
+            const next = !isAudioEnabled;
+            stream.getAudioTracks().forEach(t => { t.enabled = next; });
+            setIsAudioEnabled(next);
+        }
+    };
+
+    const toggleVideo = () => {
+        const stream = localVideoRef.current?.srcObject;
+        if (stream) {
+            const next = !isVideoEnabled;
+            stream.getVideoTracks().forEach(t => { t.enabled = next; });
+            setIsVideoEnabled(next);
+        }
+    };
+
+    useEffect(() => {
+        let cancelled = false;
+        let localStream = null;
+
+        const fetchLocalMedia = async () => {
+            localStream = await navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true,
+            });
+
+            if (cancelled) {
+                localStream.getTracks().forEach((t) => t.stop());
+                return;
+            }
+
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = localStream;
+            }
+        };
+
+        fetchLocalMedia();
+
+        return () => {
+            cancelled = true;
+            localStream?.getTracks().forEach((t) => t.stop());
+        };
+    }, []);
+
+    useEffect(() => {
+        const stream = localVideoRef.current?.srcObject;
+        if (!stream) return;
+
+        stream.getAudioTracks().forEach((track) => {
+            track.enabled = isAudioEnabled;
+        });
+    }, [isAudioEnabled]);
+
+    useEffect(() => {
+        const stream = localVideoRef.current?.srcObject;
+        if (!stream) return;
+
+        stream.getVideoTracks().forEach((track) => {
+            track.enabled = isVideoEnabled;
+        });
+    }, [isVideoEnabled]);
+    return (
+        <>
+            {authUser &&
+                <AuthSidebar
+                    user={authUser}
+                    currentPath={location.pathname}
+                    onNavigateHome={() => navigate('/home')}
+                    onLogout={handleLogout}
+                />}
+            <div className="homepage-container">
+                <div className="video-container">
+                    <video
+                        ref={localVideoRef}
+                        autoPlay
+                        muted
+                        className="local-video"
+                    />
+                    {!isVideoEnabled && (
+                        <div className="video-overlay">
+                            Camera is off
+                        </div>
+                    )}
+
+                    {/* Media controls */}
+                    <div className="media-controls">
+                        <button
+                            className={`btn-control ${!isAudioEnabled ? 'disabled' : ''}`}
+                            onClick={() => toggleAudio()}
+                            title={isAudioEnabled ? "Mute microphone" : "Unmute microphone"}
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+                                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                                <line x1="12" y1="19" x2="12" y2="23"></line>
+                                <line x1="8" y1="23" x2="16" y2="23"></line>
+                                {!isAudioEnabled && <line x1="1" y1="1" x2="23" y2="23"></line>}
+                            </svg>
+                        </button>
+                        <button
+                            className={`btn-control ${!isVideoEnabled ? 'disabled' : ''}`}
+                            onClick={() => toggleVideo()}
+                            title={isVideoEnabled ? "Turn off camera" : "Turn on camera"}
+                        >
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <polygon points="23 7 16 12 23 17 23 7"></polygon>
+                                <rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect>
+                                {!isVideoEnabled && <line x1="1" y1="1" x2="23" y2="23"></line>}
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                {!isEnteringMeetingId ? (
+                    <div className="card">
+                        <div className="welcome-text">
+                            <div className="welcome-line">Welcome to</div>
+                            <div className="app-logo">
+                                <img src="/convo-logo-2.png" alt="Convo Logo" className="logo-img" />
+                            </div>
+                        </div>
+
+                        <img
+                            src="convo-logo-1.png"
+                            alt="Convo Logo"
+                            className="card-logo"
+                        />
+                        <button className="btn btn-primary" onClick={startMeeting}>
+                            Start a meeting
+                        </button>
+                        <button className="btn btn-primary" onClick={joinMeeting}>
+                            Join a meeting
+                        </button>
+                    </div>
+                ) : (
+                    <div className="card">
+                        {/* Back button */}
+                        <button className="btn-back" onClick={goBack} title="Go back">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="19" y1="12" x2="5" y2="12"></line>
+                                <polyline points="12 19 5 12 12 5"></polyline>
+                            </svg>
+                            <span style={{ marginLeft: '8px' }}></span>
+                        </button>
+
+                        {command === "Start" ? (
+                            <>
+                                {/* Meeting ID card with inline copy actions */}
+                                <div className="meeting-id-display">
+                                    <span className="meeting-id-label">Meeting ID</span>
+                                    <span className="meeting-id-value">{meetingId}</span>
+                                    <span className="meeting-id-label">Meeting Link</span>
+                                    <span className="meeting-id-value">{getMeetingLink(meetingId)}</span>
+                                    <div className="meeting-id-actions">
+                                        <button
+                                            className={`meeting-id-action-btn ${copied ? 'active' : ''}`}
+                                            onClick={copyMeetingId}
+                                            title="Copy meeting ID"
+                                        >
+                                            {copied ? (
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                                </svg>
+                                            ) : (
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                                                    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                                                </svg>
+                                            )}
+                                            <span>{copied ? 'Copied' : 'Copy ID'}</span>
+                                        </button>
+
+                                        <div className="meeting-id-actions-divider" />
+
+                                        <button
+                                            className={`meeting-id-action-btn ${copiedLink ? 'active' : ''}`}
+                                            onClick={copyMeetingLink}
+                                            title="Copy meeting link"
+                                        >
+                                            {copiedLink ? (
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                                </svg>
+                                            ) : (
+                                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                                                </svg>
+                                            )}
+                                            <span>{copiedLink ? 'Copied' : 'Copy Link'}</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button className="btn btn-primary" onClick={handleJoinOrStart}>
+                                    Start
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                <input
+                                    type="text"
+                                    placeholder="Enter Meeting ID"
+                                    value={meetingId}
+                                    onChange={(e) => setMeetingId(e.target.value)}
+                                    className="meeting-input"
+                                />
+                                <button className="btn btn-primary" onClick={handleJoinOrStart}>
+                                    Join
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
+            </div>
+        </>
+    );
+}
+
+Homepage.propTypes = {
+    homepageAttributes: PropTypes.shape({
+        authUser: PropTypes.object.isRequired,
+        commandPair: PropTypes.shape({
+            command: PropTypes.string.isRequired,
+            setCommand: PropTypes.func.isRequired
+        }).isRequired,
+        isAudioEnabledPair: PropTypes.shape({
+            isAudioEnabled: PropTypes.bool.isRequired,
+            setIsAudioEnabled: PropTypes.func.isRequired
+        }).isRequired,
+        isVideoEnabledPair: PropTypes.shape({
+            isVideoEnabled: PropTypes.bool.isRequired,
+            setIsVideoEnabled: PropTypes.func.isRequired
+        }).isRequired,
+        handleLogout: PropTypes.func.isRequired
+    }).isRequired
+};
+
+export default Homepage;
