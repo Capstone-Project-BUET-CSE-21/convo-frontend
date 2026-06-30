@@ -328,6 +328,15 @@
   overflow: hidden;
 }
 
+.chat-send-btn img {
+  width: 16px;
+  height: 16px;
+  display: block;
+  filter: invert(1);
+  position: relative;
+  z-index: 1; /* sit above the ::after gradient overlay */
+}
+
 .chat-send-btn::after {
   content: '';
   position: absolute;
@@ -346,6 +355,9 @@
   cursor: not-allowed;
 }
 
+.chat-send-btn:disabled img {
+  filter: invert(1) opacity(0.7);
+}
 /* ── Responsive ── */
 
 @media (max-width: 480px) {
