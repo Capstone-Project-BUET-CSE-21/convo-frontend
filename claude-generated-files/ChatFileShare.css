@@ -71,6 +71,50 @@
 }
 
 
+/* ── Upload progress readout ── */
+
+.chat-attach-btn__progress {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  color: var(--brand-deep);
+  line-height: 1;
+}
+
+
+/* ── Error message ── */
+
+.chat-file-error {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 180px;
+  max-width: 240px;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--red);
+  background: var(--red-soft);
+  border: 1px solid rgba(229, 72, 77, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  white-space: normal;
+  z-index: 20;
+  animation: chatFileErrorIn 0.2s var(--ease-out) both;
+}
+
+@keyframes chatFileErrorIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
 /* ============================================================
    Light-surface context
    (If this component is ever dropped onto a light/white
@@ -100,10 +144,19 @@
     width: 32px;
     height: 32px;
   }
+
+  .chat-file-error {
+    max-width: 200px;
+    font-size: 11px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .chat-attach-btn:active:not(:disabled) {
     transform: none;
+  }
+
+  .chat-file-error {
+    animation: none;
   }
 }

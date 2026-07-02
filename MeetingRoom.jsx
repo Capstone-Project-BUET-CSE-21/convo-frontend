@@ -5,8 +5,8 @@ import "./MeetingRoom.css";
 import createProcessedStream from "../audio/audioWorkletSetup";
 import useMeetingRecording from "../meeting/useMeetingRecording";
 import { getAuthToken } from "../auth/authSession";
-import MeetingChat from "../components/MeetingChat";
-import { ParticipantAvatar, RemoteParticipantTile } from "../components/MeetingRoomHelperComponents";
+import MeetingChat from "../components/meeting/MeetingChat";
+import { ParticipantAvatar, RemoteParticipantTile } from "../components/meeting/MeetingRoomHelperComponents";
 
 const WS_URL = import.meta.env.VITE_WS_BASE_URL;
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
@@ -35,8 +35,6 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   const serverRef = useRef(null);
   const wsRef = useRef(null);
   const pcRef = useRef(new Map());
-  const dataChannelsRef = useRef(new Map()); // peerId -> RTCDataChannel ("file-transfer")
-  const incomingTransfersRef = useRef(new Map()); // peerId -> { meta, chunks, receivedBytes }
   const [peerNames, setPeerNames] = useState(new Map());
 
   const rawStreamRef = useRef(null);
@@ -97,100 +95,6 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
   // ── WebRTC helpers ───────────────────────────────────────────────────────
 
-  // File transfers are chunked into ArrayBuffers and streamed straight over
-  // the peer connection's data channel — no backend upload involved. Each
-  // transfer is framed as: one "file-meta" JSON message, N binary chunks in
-  // order, then one "file-end" JSON message. Because a data channel is
-  // ordered by default and only carries one peer's traffic, we only need to
-  // track a single in-flight transfer per peer at a time.
-  const BUFFERED_AMOUNT_LOW_THRESHOLD = 1024 * 1024; // 1MB — used for backpressure on send
-
-  const setupDataChannel = (peerId, channel) => {
-    channel.binaryType = "arraybuffer";
-    channel.bufferedAmountLowThreshold = BUFFERED_AMOUNT_LOW_THRESHOLD;
-    dataChannelsRef.current.set(peerId, channel);
-
-    channel.onopen = () => console.log(`Data channel open with ${peerId}`);
-
-    channel.onclose = () => {
-      console.log(`Data channel closed with ${peerId}`);
-      dataChannelsRef.current.delete(peerId);
-      incomingTransfersRef.current.delete(peerId);
-    };
-
-    channel.onerror = (err) => {
-      const isExpectedAbort =
-        err?.error?.message?.includes("User-Initiated Abort") ||
-        err?.error?.message?.includes("Close called");
-
-      if (isExpectedAbort) {
-        console.log(`Data channel with ${peerId} closed (peer disconnected)`);
-        return;
-      }
-
-      console.error(`Data channel error with ${peerId}:`, err);
-    };
-    
-    channel.onmessage = (e) => handleDataChannelMessage(peerId, e.data);
-  };
-
-  const handleDataChannelMessage = (peerId, data) => {
-    // Control frames (metadata / end-of-transfer) travel as JSON strings;
-    // file bytes travel as raw ArrayBuffers in between them.
-    if (typeof data === "string") {
-      let msg;
-      try {
-        msg = JSON.parse(data);
-      } catch {
-        return;
-      }
-
-      if (msg.kind === "file-meta") {
-        incomingTransfersRef.current.set(peerId, { meta: msg, chunks: [], receivedBytes: 0 });
-        return;
-      }
-
-      if (msg.kind === "file-end") {
-        const transfer = incomingTransfersRef.current.get(peerId);
-        if (!transfer || transfer.meta.transferId !== msg.transferId) return;
-
-        const blob = new Blob(transfer.chunks, {
-          type: transfer.meta.fileType || "application/octet-stream",
-        });
-        const fileUrl = URL.createObjectURL(blob);
-
-        setChatMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now() + Math.random(),
-            type: "file",
-            from: peerId,
-            fromName: peerNames.get(peerId) || transfer.meta.fromName,
-            to: transfer.meta.to === "__everyone__" ? "__everyone__" : userId,
-            fileId: transfer.meta.transferId,
-            fileUrl,
-            fileName: transfer.meta.fileName,
-            fileType: transfer.meta.fileType,
-            fileSize: transfer.meta.fileSize,
-            time: transfer.meta.time,
-            isMine: false,
-          },
-        ]);
-
-        incomingTransfersRef.current.delete(peerId);
-        return;
-      }
-
-      return;
-    }
-
-    // Binary chunk for the transfer currently in flight from this peer.
-    const transfer = incomingTransfersRef.current.get(peerId);
-    if (!transfer) return; // stray chunk with no matching "file-meta" — drop it
-    transfer.chunks.push(data);
-    transfer.receivedBytes += data.byteLength;
-  };
-
   const createPeerConnection = async (peerId) => {
     if (pcRef.current.has(peerId)) {
       return pcRef.current.get(peerId);
@@ -215,10 +119,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     pc.ontrack = e => {
       console.log(`Received ${e.track.kind} track from ${peerId}`);
       e.streams[0].getTracks().forEach(t => {
-        if (!remoteStream.getTracks().includes(t)) {
-          remoteStream.addTrack(t);
-          remoteStream.dispatchEvent(new Event("addtrack")); // manually notify listeners
-        }
+        if (!remoteStream.getTracks().includes(t)) remoteStream.addTrack(t);
       });
     };
 
@@ -238,10 +139,6 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         removePeer(peerId);
       }
     };
-
-    // The peer that sends the offer also creates the data channel (see
-    // sendOffer below); whichever side that ends up being, this picks it up.
-    pc.ondatachannel = (e) => setupDataChannel(peerId, e.channel);
 
     pcRef.current.set(peerId, pc);
     setPeers(prev => {
@@ -275,12 +172,6 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   const sendOffer = async (peerId) => {
     try {
       const pc = await createPeerConnection(peerId);
-
-      if (!dataChannelsRef.current.has(peerId)) {
-        const channel = pc.createDataChannel("file-transfer", { ordered: true });
-        setupDataChannel(peerId, channel);
-      }
-
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
@@ -294,16 +185,10 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   };
 
   const removePeer = (peerId) => {
-    const channel = dataChannelsRef.current.get(peerId);
-    if (channel) channel.close();
-
     const pc = pcRef.current.get(peerId);
     if (pc) pc.close();
-
     pcRef.current.delete(peerId);
     remoteVideosRef.current.delete(peerId);
-    dataChannelsRef.current.delete(peerId);
-    incomingTransfersRef.current.delete(peerId);
     setPeers(p => p.filter(id => id !== peerId));
   };
 
@@ -326,8 +211,6 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     pcRef.current.forEach(pc => pc.close());
     pcRef.current.clear();
     remoteVideosRef.current.clear();
-    dataChannelsRef.current.clear();
-    incomingTransfersRef.current.clear();
     setPeers([]);
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -512,7 +395,6 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
             break;
 
           case "offer":
-            await watermarkReadyPromiseRef.current;
             await handleOffer(data.from, data.payload.name, data.payload.offer);
             break;
 
@@ -574,8 +456,6 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       wsRef.current?.close();
       pcs.forEach(pc => pc.close());
       pcs.clear();
-      dataChannelsRef.current.clear();
-      incomingTransfersRef.current.clear();
       rawStreamRef.current?.getTracks().forEach(t => t.stop());
     };
   }, []);
@@ -805,7 +685,6 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         isOpen={isChatOpen}
         onClose={() => setIsChatOpen(false)}
         wsRef={wsRef}
-        dataChannelsRef={dataChannelsRef}
         roomId={roomId}
         peers={peers}
         peerNames={peerNames}

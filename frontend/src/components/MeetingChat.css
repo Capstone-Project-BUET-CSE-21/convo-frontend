@@ -5,7 +5,7 @@
   right: 0;
   top: 0;
   bottom: 0;
-  width: 360px;
+  width: 400px;
   background: var(--surface);
   border-left: 1px solid var(--border);
   display: flex;
@@ -13,13 +13,22 @@
   z-index: 100;
   font-family: var(--font-body);
   animation: chatSlideIn 0.7s var(--ease-out) both;
-  top: 60px;       /* height of your meeting header — adjust if needed */
-  bottom: 96px;    /* nudged up from 80px so the panel clears the meeting toolbar */
+  top: 60px;
+  /* height of your meeting header — adjust if needed */
+  bottom: 96px;
+  /* nudged up from 80px so the panel clears the meeting toolbar */
 }
 
 @keyframes chatSlideIn {
-  from { transform: translateX(100%); opacity: 0; }
-  to   { transform: translateX(0);    opacity: 1; }
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
 
 /* ── Header ── */
@@ -213,8 +222,15 @@
 }
 
 @keyframes fieldIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .chat-bubble--mine {
@@ -265,6 +281,123 @@
   color: var(--ink-subtle);
   margin-top: 3px;
   padding: 0 2px;
+}
+
+/* ── Staged file tray ── */
+/* Sits above the input row once a file is attached, mirroring the message
+   bubble it will become — mini thumbnail/icon, name + size, a remove button,
+   and (once Send is pressed) an inline progress readout. */
+
+.chat-staged {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 1rem;
+  padding: 8px 10px;
+  background: var(--surface-raised);
+  border: 1.5px solid var(--border-mid);
+  border-radius: var(--radius-md);
+  flex-shrink: 0;
+  animation: fieldIn 0.2s var(--ease-out) both;
+}
+
+.chat-staged__preview {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: rgba(128, 90, 230, 0.14);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.chat-staged__thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.chat-staged__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--brand-deep);
+}
+
+.chat-staged__icon svg {
+  stroke: currentColor;
+}
+
+.chat-staged__progress {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(13, 13, 18, 0.6);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.chat-staged__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.chat-staged__name {
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-staged__size {
+  font-size: 10.5px;
+  color: var(--ink-subtle);
+  letter-spacing: 0.01em;
+}
+
+.chat-staged__remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  color: var(--ink-subtle);
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+
+.chat-staged__remove:hover {
+  color: var(--ink);
+  background: rgba(13, 13, 18, 0.06);
+}
+
+.chat-staged-error {
+  margin: 6px 1rem 0;
+  font-size: 11.5px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--red);
+  background: var(--red-soft);
+  border: 1px solid rgba(229, 72, 77, 0.25);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  flex-shrink: 0;
 }
 
 /* ── Input row ── */
@@ -334,14 +467,15 @@
   display: block;
   filter: invert(1);
   position: relative;
-  z-index: 1; /* sit above the ::after gradient overlay */
+  z-index: 1;
+  /* sit above the ::after gradient overlay */
 }
 
 .chat-send-btn::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, transparent 60%);
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.06) 0%, transparent 60%);
   pointer-events: none;
 }
 
@@ -358,6 +492,7 @@
 .chat-send-btn:disabled img {
   filter: invert(1) opacity(0.7);
 }
+
 /* ── Responsive ── */
 
 @media (max-width: 480px) {
@@ -368,5 +503,13 @@
 
   .chat-threads {
     width: 90px;
+  }
+
+  .chat-staged {
+    margin: 0 0.75rem;
+  }
+
+  .chat-staged-error {
+    margin: 6px 0.75rem 0;
   }
 }

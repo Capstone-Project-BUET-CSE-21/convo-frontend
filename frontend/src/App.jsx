@@ -13,7 +13,7 @@ const App = () => {
   const navigate = useNavigate();
   const [isAudioEnabled, setIsAudioEnabled] = useState(true);
   const [isVideoEnabled, setIsVideoEnabled] = useState(true);
-  const [command, setCommand] = useState("");
+  const [command, setCommand] = useState("Join");
   const [authUser, setAuthUser] = useState(getAuthUser());
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
@@ -62,7 +62,7 @@ const App = () => {
   const handleLogout = () => {
     clearAuthSession();
     setAuthUser(null);
-    setCommand("");
+    setCommand("Join");
     setIsAudioEnabled(true);
     setIsVideoEnabled(true);
     navigate('/auth', { replace: true });

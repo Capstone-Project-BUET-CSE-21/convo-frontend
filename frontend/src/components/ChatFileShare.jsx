@@ -1,82 +1,222 @@
-import { useRef, useState } from "react";
+import { forwardRef, useImperativeHandle, useRef } from "react";
 import PropTypes from "prop-types";
 import "./ChatFileShare.css";
 
-const MAX_FILE_SIZE = 5 * 1024 * 1024; // backend's call ultimately, this is just a UX guard
+const EVERYONE = "__everyone__";
 
-const ChatFileShare = ({ roomId, currentUser, activeThread, onFileSent }) => {
+// Browser-memory guard, not a backend limit — transfers are P2P over
+// RTCDataChannel now, so the ceiling is "how much can comfortably live in
+// memory on both ends" rather than an upload quota.
+export const MAX_FILE_SIZE = 50 * 1024 * 1024;
+
+// Data channel messages should stay well under the ~256KB SCTP message cap
+// most browsers enforce, and small chunks make backpressure/progress finer
+// grained.
+const CHUNK_SIZE = 16 * 1024;
+
+// Resolves once the channel has drained back under the low-water mark, so
+// we never queue more into bufferedAmount than the connection can carry.
+const waitForBufferLow = (channel) => {
+  if (channel.bufferedAmount <= channel.bufferedAmountLowThreshold) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => {
+    const onLow = () => {
+      channel.removeEventListener("bufferedamountlow", onLow);
+      resolve();
+    };
+    channel.addEventListener("bufferedamountlow", onLow);
+  });
+};
+
+const waitForChannelOpen = (channel, timeoutMs = 10000) => {
+  if (channel.readyState === "open") {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve, reject) => {
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      reject(new Error("Timed out waiting for data channel to open"));
+    }, timeoutMs);
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      channel.removeEventListener("open", onOpen);
+      channel.removeEventListener("close", onClose);
+      channel.removeEventListener("error", onError);
+    };
+
+    const onOpen = () => {
+      cleanup();
+      resolve();
+    };
+
+    const onClose = () => {
+      cleanup();
+      reject(new Error("Data channel closed before the file could be sent"));
+    };
+
+    const onError = () => {
+      cleanup();
+      reject(new Error("Data channel error while waiting to send file"));
+    };
+
+    channel.addEventListener("open", onOpen);
+    channel.addEventListener("close", onClose);
+    channel.addEventListener("error", onError);
+  });
+};
+
+const sendFileOverChannel = async (channel, file, meta, onProgress) => {
+  if (channel.readyState !== "open") {
+    throw new Error("Data channel not open");
+  }
+
+  channel.send(JSON.stringify({ kind: "file-meta", ...meta }));
+
+  for (let i = 0; i < meta.totalChunks; i++) {
+    await waitForBufferLow(channel);
+    const start = i * CHUNK_SIZE;
+    const slice = file.slice(start, start + CHUNK_SIZE);
+    const buffer = await slice.arrayBuffer();
+    channel.send(buffer);
+    onProgress(i + 1, meta.totalChunks);
+  }
+
+  channel.send(JSON.stringify({ kind: "file-end", transferId: meta.transferId }));
+};
+
+// Attach button + hidden file input. Picking a file no longer sends it right
+// away — it just hands the File up to the parent via onStageFile, which
+// shows it in the input tray (Messenger-style) until the user hits Send.
+// The parent calls sendStagedFile() through the ref when that happens.
+const ChatFileShare = forwardRef(function ChatFileShare(
+  {
+    roomId,
+    currentUser,
+    activeThread,
+    peers,
+    peerNames,
+    dataChannelsRef,
+    onFileSent,
+    stagedFile,
+    onStageFile,
+    onStageError,
+    onProgressChange,
+    disabled,
+  },
+  ref
+) {
   const fileInputRef = useRef(null);
-  const [error, setError] = useState("");
-  const [progress, setProgress] = useState(null); // null = idle, 0-100 while uploading
 
   const handleAttachClick = () => {
-    setError("");
+    if (disabled) return;
+    onStageError("");
     fileInputRef.current?.click();
   };
 
-  const uploadFile = (file) => {
-    return new Promise((resolve, reject) => {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("roomId", roomId);
-
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", "/api/files/upload");
-
-      xhr.upload.onprogress = (e) => {
-        if (e.lengthComputable) {
-          setProgress(Math.round((e.loaded / e.total) * 100));
-        }
-      };
-
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          resolve(JSON.parse(xhr.responseText)); // expect { fileId, fileUrl, fileName, fileSize, fileType }
-        } else {
-          reject(new Error(`Upload failed (${xhr.status})`));
-        }
-      };
-
-      xhr.onerror = () => reject(new Error("Upload failed — network error"));
-      xhr.send(formData);
-    });
-  };
-
-  const handleFileChange = async (e) => {
+  const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
 
     if (file.size > MAX_FILE_SIZE) {
-      setError(`"${file.name}" exceeds the ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`);
+      onStageError(`"${file.name}" exceeds the ${MAX_FILE_SIZE / 1024 / 1024}MB limit.`);
       return;
     }
 
-    setError("");
-    setProgress(0);
+    onStageError("");
+    onStageFile(file);
+  };
+
+  const sendStagedFile = async () => {
+    const file = stagedFile;
+    if (!file) return;
+
+    const targetPeerIds = activeThread === EVERYONE ? peers : [activeThread];
+    const targets = targetPeerIds
+      .map((peerId) => ({ peerId, channel: dataChannelsRef.current?.get(peerId) }))
+      .filter(({ channel }) => channel);
+
+    if (targets.length === 0) {
+      onStageError("No connected peers to send this file to right now.");
+      return;
+    }
+
+    onStageError("");
+    onProgressChange(0);
+
+    const transferId = `${currentUser.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE) || 1;
+    const time = Date.now();
+    const meta = {
+      transferId,
+      fileName: file.name,
+      fileType: file.type || "application/octet-stream",
+      fileSize: file.size,
+      totalChunks,
+      from: currentUser.id,
+      fromName: currentUser.displayName,
+      to: activeThread,
+      time,
+    };
+
+    // Track how far along each target peer's transfer is so the tray can
+    // show one combined percentage even when sending to several peers at once.
+    const fractionPerChannel = new Array(targets.length).fill(0);
+    const reportProgress = (idx, sent, total) => {
+      fractionPerChannel[idx] = sent / total;
+      const overall = fractionPerChannel.reduce((a, b) => a + b, 0) / targets.length;
+      onProgressChange(Math.round(overall * 100));
+    };
 
     try {
-      const uploaded = await uploadFile(file);
+      await Promise.all(targets.map(({ channel }) => waitForChannelOpen(channel)));
 
+      const results = await Promise.allSettled(
+        targets.map(({ channel }, idx) =>
+          sendFileOverChannel(channel, file, meta, (sent, total) => reportProgress(idx, sent, total))
+        )
+      );
+
+      const succeededCount = results.filter((r) => r.status === "fulfilled").length;
+      const failedPeerIds = results
+        .map((r, idx) => (r.status === "rejected" ? targets[idx].peerId : null))
+        .filter(Boolean);
+
+      if (succeededCount === 0) {
+        // Every send failed — nothing went out, so don't post a chat bubble.
+        onStageError("Couldn't send that file. Try again.");
+        return;
+      }
+
+      if (failedPeerIds.length > 0) {
+        const names = failedPeerIds.map((id) => peerNames?.get?.(id) || "a peer").join(", ");
+        onStageError(`Sent, but delivery to ${names} failed.`);
+      }
+
+      // At least one peer received it, so the sender's own chat bubble
+      // should still show up — it reflects what was sent, not full delivery.
       onFileSent({
         type: "file",
         roomId,
         from: currentUser.id,
         fromName: currentUser.displayName,
         to: activeThread,
-        fileId: uploaded.fileId,
-        fileUrl: uploaded.fileUrl,
-        fileName: uploaded.fileName ?? file.name,
-        fileType: uploaded.fileType ?? file.type ?? "application/octet-stream",
-        fileSize: uploaded.fileSize ?? file.size,
-        time: Date.now(),
+        fileId: transferId,
+        fileUrl: URL.createObjectURL(file),
+        fileName: file.name,
+        fileType: file.type || "application/octet-stream",
+        fileSize: file.size,
+        time,
       });
-    } catch {
-      setError("Couldn't upload that file. Try again.");
     } finally {
-      setProgress(null);
+      onProgressChange(null);
     }
   };
+
+  useImperativeHandle(ref, () => ({ sendStagedFile }));
 
   return (
     <div className="chat-file-share">
@@ -93,26 +233,20 @@ const ChatFileShare = ({ roomId, currentUser, activeThread, onFileSent }) => {
         type="button"
         className="chat-attach-btn"
         onClick={handleAttachClick}
-        disabled={progress !== null}
+        disabled={disabled}
         aria-label="Attach file"
       >
-        {progress !== null ? (
-          <span className="chat-attach-btn__progress">{progress}%</span>
-        ) : (
-          <img
-            src="/attach.png"
-            alt="Attach file"
-            width="18"
-            height="18"
-            className="chat-attach-btn__icon"
-          />
-        )}
+        <img
+          src="/attach.png"
+          alt="Attach file"
+          width="18"
+          height="18"
+          className="chat-attach-btn__icon"
+        />
       </button>
-
-      {error && <p className="chat-file-error">{error}</p>}
     </div>
   );
-};
+});
 
 ChatFileShare.propTypes = {
   roomId: PropTypes.string.isRequired,
@@ -121,7 +255,20 @@ ChatFileShare.propTypes = {
     displayName: PropTypes.string.isRequired,
   }).isRequired,
   activeThread: PropTypes.string.isRequired,
+  peers: PropTypes.arrayOf(PropTypes.string).isRequired,
+  peerNames: PropTypes.instanceOf(Map).isRequired,
+  dataChannelsRef: PropTypes.shape({ current: PropTypes.object }).isRequired,
   onFileSent: PropTypes.func.isRequired,
+  stagedFile: PropTypes.instanceOf(File),
+  onStageFile: PropTypes.func.isRequired,
+  onStageError: PropTypes.func.isRequired,
+  onProgressChange: PropTypes.func.isRequired,
+  disabled: PropTypes.bool,
+};
+
+ChatFileShare.defaultProps = {
+  stagedFile: null,
+  disabled: false,
 };
 
 export default ChatFileShare;

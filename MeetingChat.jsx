@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import PropTypes from "prop-types";
 import "./MeetingChat.css";
-import ChatFileShare from "../components/ChatFileShare";
-import ChatFileBubble from "../components/ChatFileBubble";
+import ChatFileShare from "./ChatFileShare";
+import ChatFileBubble from "./ChatFileBubble";
 
 const EVERYONE = "__everyone__";
 

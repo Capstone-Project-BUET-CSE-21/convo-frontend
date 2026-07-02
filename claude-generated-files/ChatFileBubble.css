@@ -4,20 +4,14 @@
    already loaded globally (--brand, --radius-*, etc).
    ============================================================ */
 
-/* ── Shared footprint for every file bubble variant ── */
+/* ── Base file bubble (non-image) ── */
 
 .chat-file {
   display: inline-flex;
-  max-width: 100%;
-}
-
-/* ── Doc / generic file chip ── */
-
-.chat-file--doc {
   align-items: center;
   gap: 10px;
-  max-width: 220px;
-  padding: 8px 10px;
+  max-width: 260px;
+  padding: 8px 12px;
   text-decoration: none;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border-room);
@@ -25,19 +19,22 @@
   transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
 }
 
-.chat-file--doc:hover {
+.chat-file:hover {
   background: rgba(255, 255, 255, 0.1);
   border-color: rgba(255, 255, 255, 0.16);
 }
 
-.chat-file--doc:active {
+.chat-file:active {
   transform: scale(0.98);
 }
 
-.chat-file--doc:focus-visible {
+.chat-file:focus-visible {
   outline: none;
   box-shadow: 0 0 0 3px rgba(128, 90, 230, 0.25);
 }
+
+
+/* ── File icon (non-image files) ── */
 
 .chat-file__icon {
   display: inline-flex;
@@ -55,12 +52,14 @@
   stroke: currentColor;
 }
 
+
+/* ── Text metadata ── */
+
 .chat-file__meta {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
-  flex: 1;
 }
 
 .chat-file__name {
@@ -81,67 +80,31 @@
   letter-spacing: 0.02em;
 }
 
-.chat-file__download {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  color: var(--ink-subtle);
-}
-
-.chat-file__download svg {
-  stroke: currentColor;
-}
-
 
 /* ── Image variant ── */
 
 .chat-file--image {
-  display: inline-block;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
   max-width: 220px;
   padding: 0;
   overflow: hidden;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-room);
-  line-height: 0;
 }
 
 .chat-file--image .chat-file__thumb {
   display: block;
-  width: auto;
-  height: auto;
-  max-width: 220px;
-  max-height: 240px;
+  width: 100%;
+  max-height: 220px;
   object-fit: cover;
   background: var(--surface-tile);
-  transition: opacity 0.15s ease;
 }
 
-.chat-file--image:hover .chat-file__thumb {
-  opacity: 0.92;
-}
-
-
-/* ── Video variant ── */
-
-.chat-file--video {
-  display: inline-block;
-  max-width: 240px;
-  overflow: hidden;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border-room);
-  background: #000;
-}
-
-.chat-file__video {
-  display: block;
-  width: auto;
-  height: auto;
-  max-width: 240px;
-  max-height: 240px;
-  background: #000;
+.chat-file--image .chat-file__name {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+  border-top: 1px solid var(--border-room);
 }
 
 
@@ -151,14 +114,14 @@
    of the dark meeting room / chat panel)
    ============================================================ */
 
-.chat-file-share--on-light .chat-file--doc,
-.chat-file--on-light.chat-file--doc {
+.chat-file-share--on-light .chat-file,
+.chat-file--on-light {
   background: var(--surface-raised);
   border-color: var(--border-mid);
 }
 
-.chat-file-share--on-light .chat-file--doc:hover,
-.chat-file--on-light.chat-file--doc:hover {
+.chat-file-share--on-light .chat-file:hover,
+.chat-file--on-light:hover {
   background: var(--surface);
   border-color: rgba(13, 13, 18, 0.25);
 }
@@ -173,11 +136,9 @@
   color: var(--ink-muted);
 }
 
-.chat-file-share--on-light.chat-file--image,
-.chat-file--on-light.chat-file--image,
-.chat-file-share--on-light.chat-file--video,
-.chat-file--on-light.chat-file--video {
-  border-color: var(--border-mid);
+.chat-file-share--on-light.chat-file--image .chat-file__name,
+.chat-file--on-light.chat-file--image .chat-file__name {
+  border-top-color: var(--border-mid);
 }
 
 
@@ -186,15 +147,10 @@
    ============================================================ */
 
 @media (max-width: 600px) {
-  .chat-file--doc {
-    max-width: 190px;
-    padding: 7px 9px;
+  .chat-file {
+    max-width: 200px;
+    padding: 7px 10px;
     gap: 8px;
-  }
-
-  .chat-file--image,
-  .chat-file--video {
-    max-width: 190px;
   }
 
   .chat-file__icon {
@@ -210,14 +166,17 @@
     font-size: 10px;
   }
 
-  .chat-file--image .chat-file__thumb,
-  .chat-file__video {
+  .chat-file--image {
+    max-width: 180px;
+  }
+
+  .chat-file--image .chat-file__thumb {
     max-height: 180px;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .chat-file--doc:active {
+  .chat-file:active {
     transform: none;
   }
 }

@@ -236,7 +236,7 @@ export default function WatermarkTestPage() {
 
     // ── Capture lossless WAV from worklet output via AudioWorklet recorder ──
     try {
-      await audioContext.audioWorklet.addModule('/recorder-processor.worklet.js');
+      await audioContext.audioWorklet.addModule('/audio-watermark/recorder-processor.worklet.js');
       const recorderNode = new AudioWorkletNode(audioContext, 'recorder-processor');
       recorderNode.port.onmessage = (ev) => {
         samplesRef.current.push(new Float32Array(ev.data));

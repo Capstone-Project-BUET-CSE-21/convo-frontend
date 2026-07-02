@@ -83,7 +83,7 @@ const useMeetingRecording = ({
     // Use AudioWorklet-based recorder to avoid deprecated ScriptProcessorNode
     let silentDestination = null;
     try {
-      await audioCtx.audioWorklet.addModule('/recorder-processor.worklet.js');
+      await audioCtx.audioWorklet.addModule('/audio-watermark/recorder-processor.worklet.js');
       const recorderNode = new AudioWorkletNode(audioCtx, 'recorder-processor');
       recorderNode.port.onmessage = (e) => {
         recordingSamplesRef.current.push(new Float32Array(e.data));

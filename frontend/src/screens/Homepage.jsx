@@ -19,7 +19,7 @@ const Homepage = ({ homepageAttributes }) => {
     const localVideoRef = useRef(null);
     const navigate = useNavigate();
 
-    const getMeetingLink = (id) => `https://convo-frontend-nine.vercel.app/room/${id}`;
+    const getMeetingLink = (id) => `${window.location.origin}/room/${id}`;
 
     const generateMeetingId = () => {
         return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);

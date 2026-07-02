@@ -5,7 +5,7 @@ const createProcessedStream = async (rawStream, config) => {
     await audioContext.resume();
   }
 
-  await audioContext.audioWorklet.addModule('/audio-processor.worklet.js');
+  await audioContext.audioWorklet.addModule('/audio-watermark/audio-processor.worklet.js');
 
   const audioSource = audioContext.createMediaStreamSource(rawStream);
 
