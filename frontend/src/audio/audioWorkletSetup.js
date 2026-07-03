@@ -17,7 +17,7 @@ const createProcessedStream = async (rawStream, config) => {
     numberOfInputs: 1,
     numberOfOutputs: 1,
     outputChannelCount: [1],
-    processorOptions: config
+    processorOptions: { ...config, sampleRate: audioContext.sampleRate }
   });
 
   const destination = audioContext.createMediaStreamDestination();
