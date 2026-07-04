@@ -260,21 +260,27 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   };
 
   const fetchWatermarkConfig = async () => {
-    try {
-      console.log("Fetching watermark config");
-      const res = await fetch(
-        `${WATERMARK_URL}/api/watermark/config?roomId=${encodeURIComponent(roomId)}&userId=${encodeURIComponent(userId)}`,
-        { method: "GET" }
-      );
-      if (!res.ok) throw new Error(`Watermark config request failed: ${res.status}`);
-      const data = await res.json();
-      console.log("Received watermark config");
-      return data;
-    } catch (err) {
-      console.error("Failed to fetch watermark config:", err);
-      return { seed: 42, alpha: 0.005, frameSize: 256 };
+    console.log("Fetching watermark config");
+    const res = await fetch(
+      `${WATERMARK_URL}/api/watermark/config?roomId=${encodeURIComponent(roomId)}&userId=${encodeURIComponent(userId)}`,
+      { method: "GET" }
+    );
+    if (!res.ok) {
+      throw new Error(`Watermark config request failed: ${res.status}`);
     }
+    const config = await res.json();
+    console.log("[watermark] resolved config for", userId, "=", {
+      seed: config.seed,
+      alpha: config.alpha,
+      frameSize: config.frameSize,
+      analysisWindowSize: config.analysisWindowSize,
+      numBands: config.numBands,
+    });
+    return config;
   };
+
+
+  
 
   const applyWatermark = async () => {
     try {
