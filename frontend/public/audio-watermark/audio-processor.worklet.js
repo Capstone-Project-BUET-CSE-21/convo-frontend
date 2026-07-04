@@ -132,6 +132,17 @@ class AudioProcessor extends AudioWorkletProcessor {
     this._bandEnergy = new Float32Array(this._numBands);
     this._bandFlatness = new Float32Array(this._numBands);
     this._bandThreshold = new Float32Array(this._numBands);
+
+    this.port.onmessage = (e) => {
+      if (e.data?.type === 'reset-prng') {
+        this._rand = _createMulberry32(
+          typeof this._seed === "string"
+            ? _hashString(this._seed)
+            : this._seed >>> 0
+        );
+        console.log('[worklet] PRNG reset for recording start');
+      }
+    };
   }
 
   _pushIn(samples) {

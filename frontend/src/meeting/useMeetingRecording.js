@@ -91,6 +91,13 @@ const useMeetingRecording = ({
 
       // Keep capture silent to avoid local echo.
       silentDestination = audioCtx.createMediaStreamDestination();
+
+       // Reset the worklet PRNG so detector starts from frame 0
+      if (recordingSourceModeRef.current === "worklet" && workletNode) {
+        workletNode.port.postMessage({ type: 'reset-prng' });
+      }
+
+      
       sourceNode.connect(recorderNode);
       recorderNode.connect(silentDestination);
 
