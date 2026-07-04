@@ -35,6 +35,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   const serverRef = useRef(null);
   const wsRef = useRef(null);
   const pcRef = useRef(new Map());
+  const iceCandidatesQueueRef = useRef(new Map()); // peerId -> array of RTCIceCandidate
   const dataChannelsRef = useRef(new Map()); // peerId -> RTCDataChannel ("file-transfer")
   const incomingTransfersRef = useRef(new Map()); // peerId -> { meta, chunks, receivedBytes }
   const [peerNames, setPeerNames] = useState(new Map());
@@ -251,15 +252,32 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
     return pc;
   };
-
+  
+  const processQueuedCandidates = async (peerId) => {
+    const pc = pcRef.current.get(peerId);
+    if (!pc || !pc.remoteDescription) return;
+    const queue = iceCandidatesQueueRef.current.get(peerId) || [];
+    console.log(`Processing ${queue.length} queued ICE candidates for ${peerId}`);
+    for (const candidate of queue) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate));
+        console.log("Added queued ICE candidate:", candidate);
+      } catch (err) {
+        console.error("Error adding queued ICE candidate:", err);
+      }
+    }
+    iceCandidatesQueueRef.current.set(peerId, []);
+  };
+  
   const handleOffer = async (peerId, peerName, offer) => {
     console.log("Received offer from:", peerId);
     try {
       const pc = await createPeerConnection(peerId);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
+      await processQueuedCandidates(peerId);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-
+  
       peerNames.set(peerId, peerName);
       setPeerNames(new Map(peerNames));
 
@@ -301,6 +319,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     if (pc) pc.close();
 
     pcRef.current.delete(peerId);
+    iceCandidatesQueueRef.current.delete(peerId);
     remoteVideosRef.current.delete(peerId);
     dataChannelsRef.current.delete(peerId);
     incomingTransfersRef.current.delete(peerId);
@@ -325,6 +344,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
     pcRef.current.forEach(pc => pc.close());
     pcRef.current.clear();
+    iceCandidatesQueueRef.current.clear();
     remoteVideosRef.current.clear();
     dataChannelsRef.current.clear();
     incomingTransfersRef.current.clear();
@@ -377,22 +397,24 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   };
 
   const fetchWatermarkConfig = async () => {
-    try {
-      console.log("Fetching watermark config");
-      const res = await fetch(
-        `${WATERMARK_URL}/api/watermark/config?roomId=${encodeURIComponent(roomId)}&userId=${encodeURIComponent(userId)}`,
-        { method: "GET" }
-      );
-      if (!res.ok) throw new Error(`Watermark config request failed: ${res.status}`);
-      const data = await res.json();
-      console.log("Received watermark config");
-      return data;
-    } catch (err) {
-      console.error("Failed to fetch watermark config:", err);
-      return { seed: 42, alpha: 0.005, frameSize: 256 };
+    console.log("Fetching watermark config");
+    const res = await fetch(
+      `${WATERMARK_URL}/api/watermark/config?roomId=${encodeURIComponent(roomId)}&userId=${encodeURIComponent(userId)}`,
+      { method: "GET" }
+    );
+    if (!res.ok) {
+      throw new Error(`Watermark config request failed: ${res.status}`);
     }
+    const config = await res.json();
+    console.log("[watermark] resolved config for", userId, "=", {
+      seed: config.seed,
+      alpha: config.alpha,
+      frameSize: config.frameSize,
+      analysisWindowSize: config.analysisWindowSize,
+      numBands: config.numBands,
+    });
+    return config;
   };
-
   const applyWatermark = async () => {
     try {
       const config = await fetchWatermarkConfig();
@@ -518,22 +540,31 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
           case "answer": {
             const pc = pcRef.current.get(data.from);
-            if (pc) await pc.setRemoteDescription(new RTCSessionDescription(data.payload.answer));
+            if (pc) {
+              await pc.setRemoteDescription(new RTCSessionDescription(data.payload.answer));
+              await processQueuedCandidates(data.from);
+            }
             peerNames.set(data.from, data.payload.name);
             setPeerNames(new Map(peerNames));
             console.log("Received answer from:", data.from);
             break;
           }
-
+ 
           case "ice": {
             const pc = pcRef.current.get(data.from);
-            if (pc) {
+            if (pc && pc.remoteDescription) {
               try {
                 await pc.addIceCandidate(new RTCIceCandidate(data.payload));
                 console.log("Added ICE candidate from:", data.from);
               } catch (err) {
                 console.error("ICE error:", err);
               }
+            } else {
+              console.log("Queueing ICE candidate from:", data.from);
+              if (!iceCandidatesQueueRef.current.has(data.from)) {
+                iceCandidatesQueueRef.current.set(data.from, []);
+              }
+              iceCandidatesQueueRef.current.get(data.from).push(data.payload);
             }
             break;
           }
@@ -574,6 +605,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       wsRef.current?.close();
       pcs.forEach(pc => pc.close());
       pcs.clear();
+      iceCandidatesQueueRef.current.clear();
       dataChannelsRef.current.clear();
       incomingTransfersRef.current.clear();
       rawStreamRef.current?.getTracks().forEach(t => t.stop());
