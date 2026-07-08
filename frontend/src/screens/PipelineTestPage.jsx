@@ -1,10 +1,11 @@
 import { useState } from "react";
 import CryptoTest from "../crypto/CryptoTest";
-import { canonicalize } from "../crypto/canonicalize";
+// import { canonicalize } from "../crypto/canonicalize";
 import { computeFileHash } from "../crypto/hashing";
 import { generateAndStoreKeypair } from "../crypto/keypair";
 import { signBlock } from "../crypto/signing";
 import { importPublicKey, verifyBlock } from "../crypto/verify";
+import PropTypes from "prop-types";
 import {
   embedProvenanceBlock,
   buildHeader,
@@ -16,6 +17,7 @@ import {
   createChainStore,
 } from "../pipeline/chainReconstruct";
 import { concatBuffers } from "../crypto/canonicalize"; // re-exported helper
+
 
 const API_BASE_URL = import.meta.env.VITE_PIPELINE_API_URL;
 
@@ -37,6 +39,17 @@ function ResultLog({ log }) {
     </div>
   );
 }
+
+
+ResultLog.propTypes = {
+  log: PropTypes.arrayOf(
+    PropTypes.shape({
+      passed: PropTypes.bool.isRequired,
+      label: PropTypes.string.isRequired,
+      detail: PropTypes.string,
+    })
+  ).isRequired,
+};
 
 function Section({ title, children }) {
   return (
