@@ -1,6 +1,5 @@
 import { useState } from "react";
 import CryptoTest from "../crypto/CryptoTest";
-// import { canonicalize } from "../crypto/canonicalize";
 import { computeFileHash } from "../crypto/hashing";
 import { generateAndStoreKeypair } from "../crypto/keypair";
 import { signBlock } from "../crypto/signing";
@@ -12,7 +11,6 @@ import {
 } from "../pipeline/chainEmbed";
 import {
   parseHeader,
-  unwrapPayload,
   reconstructChain,
   createChainStore,
 } from "../pipeline/chainReconstruct";
@@ -40,7 +38,6 @@ function ResultLog({ log }) {
   );
 }
 
-
 ResultLog.propTypes = {
   log: PropTypes.arrayOf(
     PropTypes.shape({
@@ -67,6 +64,11 @@ function Section({ title, children }) {
     </div>
   );
 }
+
+Section.propTypes = {
+  title: PropTypes.string.isRequired,
+  children: PropTypes.node.isRequired,
+};
 
 // ---------------------------------------------------------------
 // Section 2: Suchi's chain embed/reconstruct tests (client-side only,
@@ -310,7 +312,7 @@ function IntegrationTest() {
     <Section title="Full pipeline — Anisa + Fariha (live) + Suchi, chained end to end">
       {!API_BASE_URL && (
         <div style={{ color: "orange", marginBottom: 10 }}>
-          VITE_API_BASE_URL isn't set — this section needs it to reach Fariha's backend.
+          VITE_API_BASE_URL isn&apos;t set — this section needs it to reach Fariha&apos;s backend.
         </div>
       )}
       <button
@@ -330,9 +332,9 @@ export default function PipelineTestPage() {
     <div style={{ padding: 20, maxWidth: 900, margin: "0 auto" }}>
       <h1 style={{ fontFamily: "monospace", fontSize: 20 }}>Provenance Pipeline — Test Page</h1>
       <p style={{ color: "#888", fontFamily: "monospace", fontSize: 13, marginBottom: 24 }}>
-        Three independent sections: Anisa's crypto unit tests, Suchi's chain
+        Three independent sections: Anisa&apos;s crypto unit tests, Suchi&apos;s chain
         embed/reconstruct unit tests, and a live integration run that chains
-        all three people's code together against the real backend.
+        all three people&apos;s code together against the real backend.
       </p>
 
       <Section title="Anisa — crypto unit tests (canonicalize, hash, keypair, sign, verify)">
