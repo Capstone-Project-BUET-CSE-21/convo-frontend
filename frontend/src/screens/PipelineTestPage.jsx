@@ -11,6 +11,7 @@ import {
 } from "../pipeline/chainEmbed";
 import {
   parseHeader,
+  unwrapPayload,
   reconstructChain,
   createChainStore,
 } from "../pipeline/chainReconstruct";
