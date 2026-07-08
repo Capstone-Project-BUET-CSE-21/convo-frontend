@@ -35,7 +35,7 @@ export function parseHeader(buffer) {
   try {
     signedBlock = JSON.parse(new TextDecoder().decode(jsonBytes));
   } catch (err) {
-    throw new Error("Malformed provenance wrapper: signed block is not valid JSON");
+    throw new Error("Malformed provenance wrapper: signed block is not valid JSON(" + err.message + ")");
   }
 
   const fileBytes = buffer.slice(jsonEnd);
