@@ -7,6 +7,8 @@ import useMeetingRecording from "../meeting/useMeetingRecording";
 import { getAuthToken } from "../auth/authSession";
 import MeetingChat from "../components/MeetingChat";
 import { ParticipantAvatar, RemoteParticipantTile } from "../components/MeetingRoomHelperComponents";
+import { decodeChunkFrame, reassembleChunkFrames } from "../pipeline/transferFrames";
+import { unwrapPayload } from "../pipeline/chainReconstruct";
 
 const WS_URL = import.meta.env.VITE_WS_BASE_URL;
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
@@ -37,7 +39,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   const pcRef = useRef(new Map());
   const iceCandidatesQueueRef = useRef(new Map()); // peerId -> array of RTCIceCandidate
   const dataChannelsRef = useRef(new Map()); // peerId -> RTCDataChannel ("file-transfer")
-  const incomingTransfersRef = useRef(new Map()); // peerId -> { meta, chunks, receivedBytes }
+  const incomingTransfersRef = useRef(new Map()); // peerId -> { meta, chunks, chunkCount, receivedBytes }
   const [peerNames, setPeerNames] = useState(new Map());
 
   const rawStreamRef = useRef(null);
@@ -131,13 +133,11 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
       console.error(`Data channel error with ${peerId}:`, err);
     };
-    
+
     channel.onmessage = (e) => handleDataChannelMessage(peerId, e.data);
   };
 
   const handleDataChannelMessage = (peerId, data) => {
-    // Control frames (metadata / end-of-transfer) travel as JSON strings;
-    // file bytes travel as raw ArrayBuffers in between them.
     if (typeof data === "string") {
       let msg;
       try {
@@ -146,16 +146,111 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         return;
       }
 
-      if (msg.kind === "file-meta") {
-        incomingTransfersRef.current.set(peerId, { meta: msg, chunks: [], receivedBytes: 0 });
+      if (msg.kind === "wrapped-file-meta") {
+        incomingTransfersRef.current.set(peerId, {
+          meta: msg,
+          chunks: new Map(),
+          chunkCount: msg.totalChunks,
+          receivedBytes: 0,
+        });
         return;
       }
 
-      if (msg.kind === "file-end") {
+      if (msg.kind === "wrapped-file-end") {
         const transfer = incomingTransfersRef.current.get(peerId);
         if (!transfer || transfer.meta.transferId !== msg.transferId) return;
 
-        const blob = new Blob(transfer.chunks, {
+        if (transfer.chunkCount == null) {
+          setChatMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now() + Math.random(),
+              type: "chat",
+              from: peerId,
+              fromName: peerNames.get(peerId) || transfer.meta.fromName,
+              to: transfer.meta.to === "__everyone__" ? "__everyone__" : userId,
+              text: "Could not receive file: missing chunk count.",
+              time: Date.now(),
+              isMine: false,
+              error: true,
+            },
+          ]);
+          incomingTransfersRef.current.delete(peerId);
+          return;
+        }
+
+        if (transfer.chunks.size !== transfer.chunkCount) {
+          setChatMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now() + Math.random(),
+              type: "chat",
+              from: peerId,
+              fromName: peerNames.get(peerId) || transfer.meta.fromName,
+              to: transfer.meta.to === "__everyone__" ? "__everyone__" : userId,
+              text: "Could not receive file: incomplete chunk stream.",
+              time: Date.now(),
+              isMine: false,
+              error: true,
+            },
+          ]);
+          incomingTransfersRef.current.delete(peerId);
+          return;
+        }
+
+        let wrappedBuffer;
+        try {
+          const orderedChunks = Array.from({ length: transfer.chunkCount }, (_, index) => {
+            const chunk = transfer.chunks.get(index);
+            if (!chunk) {
+              throw new Error(`Missing chunk ${index}`);
+            }
+            return chunk;
+          });
+          wrappedBuffer = reassembleChunkFrames(orderedChunks);
+        } catch (err) {
+          setChatMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now() + Math.random(),
+              type: "chat",
+              from: peerId,
+              fromName: peerNames.get(peerId) || transfer.meta.fromName,
+              to: transfer.meta.to === "__everyone__" ? "__everyone__" : userId,
+              text: `Could not receive file: ${err.message}`,
+              time: Date.now(),
+              isMine: false,
+              error: true,
+            },
+          ]);
+          incomingTransfersRef.current.delete(peerId);
+          return;
+        }
+
+        let signedBlock;
+        let fileBytes;
+        try {
+          ({ signedBlock, fileBytes } = unwrapPayload(wrappedBuffer));
+        } catch (err) {
+          setChatMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now() + Math.random(),
+              type: "chat",
+              from: peerId,
+              fromName: peerNames.get(peerId) || transfer.meta.fromName,
+              to: transfer.meta.to === "__everyone__" ? "__everyone__" : userId,
+              text: `Could not receive file: ${err.message}`,
+              time: Date.now(),
+              isMine: false,
+              error: true,
+            },
+          ]);
+          incomingTransfersRef.current.delete(peerId);
+          return;
+        }
+
+        const blob = new Blob([fileBytes], {
           type: transfer.meta.fileType || "application/octet-stream",
         });
         const fileUrl = URL.createObjectURL(blob);
@@ -175,6 +270,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
             fileSize: transfer.meta.fileSize,
             time: transfer.meta.time,
             isMine: false,
+            provenance: signedBlock,
           },
         ]);
 
@@ -187,9 +283,29 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
     // Binary chunk for the transfer currently in flight from this peer.
     const transfer = incomingTransfersRef.current.get(peerId);
-    if (!transfer) return; // stray chunk with no matching "file-meta" — drop it
-    transfer.chunks.push(data);
-    transfer.receivedBytes += data.byteLength;
+    if (!transfer) return;
+
+    try {
+      const { chunkIndex, payload } = decodeChunkFrame(data);
+      transfer.chunks.set(chunkIndex, payload);
+      transfer.receivedBytes += payload.byteLength;
+    } catch (err) {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now() + Math.random(),
+          type: "chat",
+          from: peerId,
+          fromName: peerNames.get(peerId) || "Guest",
+          to: userId,
+          text: `Could not receive file chunk: ${err.message}`,
+          time: Date.now(),
+          isMine: false,
+          error: true,
+        },
+      ]);
+      incomingTransfersRef.current.delete(peerId);
+    }
   };
 
   const createPeerConnection = async (peerId) => {
@@ -252,7 +368,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
     return pc;
   };
-  
+
   const processQueuedCandidates = async (peerId) => {
     const pc = pcRef.current.get(peerId);
     if (!pc || !pc.remoteDescription) return;
@@ -268,7 +384,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     }
     iceCandidatesQueueRef.current.set(peerId, []);
   };
-  
+
   const handleOffer = async (peerId, peerName, offer) => {
     console.log("Received offer from:", peerId);
     try {
@@ -277,7 +393,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       await processQueuedCandidates(peerId);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
-  
+
       peerNames.set(peerId, peerName);
       setPeerNames(new Map(peerNames));
 
@@ -477,8 +593,12 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
 
   // ── Initialization effect ────────────────────────────────────────────────
 
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     const pcs = pcRef.current;
+    const iceQueue = iceCandidatesQueueRef.current;
+    const dataChannels = dataChannelsRef.current;
+    const incomingTransfers = incomingTransfersRef.current;
 
     const initialize = async () => {
       watermarkReadyPromiseRef.current = new Promise((resolve) => {
@@ -549,7 +669,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
             console.log("Received answer from:", data.from);
             break;
           }
- 
+
           case "ice": {
             const pc = pcRef.current.get(data.from);
             if (pc && pc.remoteDescription) {
@@ -605,12 +725,13 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
       wsRef.current?.close();
       pcs.forEach(pc => pc.close());
       pcs.clear();
-      iceCandidatesQueueRef.current.clear();
-      dataChannelsRef.current.clear();
-      incomingTransfersRef.current.clear();
+      iceQueue.clear();
+      dataChannels.clear();
+      incomingTransfers.clear();
       rawStreamRef.current?.getTracks().forEach(t => t.stop());
     };
   }, []);
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   // ── Gallery layout helper ────────────────────────────────────────────────
 

@@ -1,6 +1,9 @@
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import PropTypes from "prop-types";
 import "./ChatFileShare.css";
+import { prepareFileForTransfer } from "../pipeline/provenancePipeline";
+import { splitBufferIntoChunkFrames, DATA_CHANNEL_CHUNK_PAYLOAD_BYTES } from "../pipeline/transferFrames";
+import { getPrivateKey } from "../crypto/keypair";
 
 const EVERYONE = "__everyone__";
 
@@ -8,11 +11,6 @@ const EVERYONE = "__everyone__";
 // RTCDataChannel now, so the ceiling is "how much can comfortably live in
 // memory on both ends" rather than an upload quota.
 export const MAX_FILE_SIZE = 50 * 1024 * 1024;
-
-// Data channel messages should stay well under the ~256KB SCTP message cap
-// most browsers enforce, and small chunks make backpressure/progress finer
-// grained.
-const CHUNK_SIZE = 16 * 1024;
 
 // Resolves once the channel has drained back under the low-water mark, so
 // we never queue more into bufferedAmount than the connection can carry.
@@ -68,23 +66,21 @@ const waitForChannelOpen = (channel, timeoutMs = 10000) => {
   });
 };
 
-const sendFileOverChannel = async (channel, file, meta, onProgress) => {
+const sendFileOverChannel = async (channel, wrappedBuffer, meta, onProgress) => {
   if (channel.readyState !== "open") {
     throw new Error("Data channel not open");
   }
 
-  channel.send(JSON.stringify({ kind: "file-meta", ...meta }));
+  const frames = splitBufferIntoChunkFrames(wrappedBuffer);
+  channel.send(JSON.stringify({ kind: "wrapped-file-meta", ...meta, totalChunks: frames.length }));
 
-  for (let i = 0; i < meta.totalChunks; i++) {
+  for (let i = 0; i < frames.length; i++) {
     await waitForBufferLow(channel);
-    const start = i * CHUNK_SIZE;
-    const slice = file.slice(start, start + CHUNK_SIZE);
-    const buffer = await slice.arrayBuffer();
-    channel.send(buffer);
-    onProgress(i + 1, meta.totalChunks);
+    channel.send(frames[i]);
+    onProgress(i + 1, frames.length);
   }
 
-  channel.send(JSON.stringify({ kind: "file-end", transferId: meta.transferId }));
+  channel.send(JSON.stringify({ kind: "wrapped-file-end", transferId: meta.transferId }));
 };
 
 // Attach button + hidden file input. Picking a file no longer sends it right
@@ -148,18 +144,40 @@ const ChatFileShare = forwardRef(function ChatFileShare(
     onProgressChange(0);
 
     const transferId = `${currentUser.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const totalChunks = Math.ceil(file.size / CHUNK_SIZE) || 1;
     const time = Date.now();
     const meta = {
       transferId,
       fileName: file.name,
       fileType: file.type || "application/octet-stream",
       fileSize: file.size,
-      totalChunks,
       from: currentUser.id,
       fromName: currentUser.displayName,
       to: activeThread,
       time,
+    };
+
+    const sessionCtx = {
+      sessionId: roomId,
+      senderId: currentUser.id,
+      recipientIds: activeThread === EVERYONE ? peers : [activeThread],
+      onStageChange: (stage) => {
+        const progressByStage = {
+          metadata: 5,
+          keys: 10,
+          hashing: 25,
+          signing: 55,
+          embedding: 75,
+          encrypting: 90,
+          ready: 100,
+        };
+
+        onProgressChange({
+          phase: stage.phase,
+          label: stage.label,
+          progress: stage.progress ?? progressByStage[stage.phase] ?? 0,
+        });
+      },
+      encryptPayload: async (wrappedBuffer) => wrappedBuffer,
     };
 
     // Track how far along each target peer's transfer is so the tray can
@@ -173,10 +191,20 @@ const ChatFileShare = forwardRef(function ChatFileShare(
 
     try {
       await Promise.all(targets.map(({ channel }) => waitForChannelOpen(channel)));
+      onProgressChange({ phase: "metadata", label: "Preparing transfer", progress: 0 });
+
+      sessionCtx.privateKey = await getPrivateKey(currentUser.id);
+      if (!sessionCtx.privateKey) {
+        throw new Error("No private key found for the current user");
+      }
+
+      const wrappedBuffer = await prepareFileForTransfer(file, sessionCtx);
+      const totalChunks = Math.ceil(wrappedBuffer.byteLength / DATA_CHANNEL_CHUNK_PAYLOAD_BYTES) || 1;
+      meta.totalChunks = totalChunks;
 
       const results = await Promise.allSettled(
         targets.map(({ channel }, idx) =>
-          sendFileOverChannel(channel, file, meta, (sent, total) => reportProgress(idx, sent, total))
+          sendFileOverChannel(channel, wrappedBuffer, meta, (sent, total) => reportProgress(idx, sent, total))
         )
       );
 

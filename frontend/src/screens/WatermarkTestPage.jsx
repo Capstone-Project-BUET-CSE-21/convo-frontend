@@ -25,7 +25,7 @@ Row.propTypes = {
   highlight: PropTypes.bool,
 };
 
-export default function WatermarkTestPage() {
+const WatermarkTestPage = () => {
   const navigate = useNavigate();
   const fileRef = useRef(null);
 
@@ -199,3 +199,5 @@ export default function WatermarkTestPage() {
     </div>
   );
 }
+
+export default WatermarkTestPage;

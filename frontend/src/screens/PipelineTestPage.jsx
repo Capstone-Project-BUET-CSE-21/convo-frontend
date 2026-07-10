@@ -22,7 +22,7 @@ const API_BASE_URL = import.meta.env.VITE_PIPELINE_API_URL;
 
 // Shared log renderer, same shape/style as Anisa's CryptoTest so the
 // three sections on this page read consistently.
-function ResultLog({ log }) {
+const ResultLog = ({ log }) => {
   return (
     <div style={{ marginTop: 12 }}>
       {log.map((entry, i) => (
@@ -49,7 +49,7 @@ ResultLog.propTypes = {
   ).isRequired,
 };
 
-function Section({ title, children }) {
+const Section = ({ title, children }) => {
   return (
     <div
       style={{
@@ -75,7 +75,7 @@ Section.propTypes = {
 // Section 2: Suchi's chain embed/reconstruct tests (client-side only,
 // no backend needed — mirrors the node:test file 1:1)
 // ---------------------------------------------------------------
-function ChainTests() {
+const ChainTests = () => {
   const [log, setLog] = useState([]);
 
   function print(label, passed, detail = "") {
@@ -202,7 +202,7 @@ function ChainTests() {
 // Section 3: full pipeline integration — Fariha's live endpoints +
 // Anisa's crypto + Suchi's embed/unwrap, chained end to end.
 // ---------------------------------------------------------------
-function IntegrationTest() {
+const IntegrationTest = () => {
   const [log, setLog] = useState([]);
   const [running, setRunning] = useState(false);
 
@@ -328,7 +328,7 @@ function IntegrationTest() {
   );
 }
 
-export default function PipelineTestPage() {
+const PipelineTestPage = () => {
   return (
     <div style={{ padding: 20, maxWidth: 900, margin: "0 auto" }}>
       <h1 style={{ fontFamily: "monospace", fontSize: 20 }}>Provenance Pipeline — Test Page</h1>
@@ -347,3 +347,5 @@ export default function PipelineTestPage() {
     </div>
   );
 }
+
+export default PipelineTestPage;

@@ -1,13 +1,13 @@
 import { canonicalize, concatBuffers, hexToBuffer, base64ToBuffer } from "./canonicalize";
 
-export async function fetchPublicKey(userId) {
+export const fetchPublicKey = async (userId) => {
   const res = await fetch(`/api/keys/${userId}`);
   if (!res.ok) return null;
   const { publicKey } = await res.json();
   return publicKey;
 }
 
-export async function importPublicKey(publicKeyBase64) {
+export const importPublicKey = async (publicKeyBase64) => {
   const spki = base64ToBuffer(publicKeyBase64);
   return crypto.subtle.importKey(
     "spki",
@@ -18,7 +18,7 @@ export async function importPublicKey(publicKeyBase64) {
   );
 }
 
-export async function verifyBlock(signature, fileHash, metadataBlock, publicKey) {
+export const verifyBlock = async (signature, fileHash, metadataBlock, publicKey) => {
   if (!publicKey) {
     return { valid: false, reason: "key-not-found" };
   }

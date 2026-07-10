@@ -28,6 +28,7 @@ const MeetingChat = ({ isOpen, onClose, wsRef, dataChannelsRef, roomId, peers, p
   const [stagedPreviewUrl, setStagedPreviewUrl] = useState(null);
   const [fileError, setFileError] = useState("");
   const [sendProgress, setSendProgress] = useState(null); // null = idle, 0-100 while sending
+  const [pipelineProgress, setPipelineProgress] = useState(null);
   const [isSendingFile, setIsSendingFile] = useState(false);
 
   // Build/revoke an object URL preview when a staged file is an image.
@@ -110,11 +111,13 @@ const MeetingChat = ({ isOpen, onClose, wsRef, dataChannelsRef, roomId, peers, p
 
   const handleStageFile = (file) => {
     setStagedFile(file);
+    setPipelineProgress(null);
   };
 
   const handleRemoveStaged = () => {
     setStagedFile(null);
     setFileError("");
+    setPipelineProgress(null);
   };
 
   // ── Send (text and/or the staged file) ────────────────────────────────────
@@ -148,12 +151,14 @@ const MeetingChat = ({ isOpen, onClose, wsRef, dataChannelsRef, roomId, peers, p
     if (fileToSend) {
       setIsSendingFile(true);
       setFileError("");
+      setPipelineProgress({ phase: "metadata", label: "Preparing transfer", progress: 0 });
       try {
         await fileShareRef.current?.sendStagedFile();
       } finally {
         setIsSendingFile(false);
         setStagedFile(null);
         setSendProgress(null);
+        setPipelineProgress(null);
       }
     }
   };
@@ -319,14 +324,14 @@ const MeetingChat = ({ isOpen, onClose, wsRef, dataChannelsRef, roomId, peers, p
                   </span>
                 )}
                 {isSendingFile && (
-                  <span className="chat-staged__progress">{sendProgress ?? 0}%</span>
+                  <span className="chat-staged__progress">{pipelineProgress?.progress ?? sendProgress ?? 0}%</span>
                 )}
               </div>
 
               <div className="chat-staged__meta">
                 <span className="chat-staged__name">{stagedFile.name}</span>
                 <span className="chat-staged__size">
-                  {isSendingFile ? "Sending…" : formatStagedSize(stagedFile.size)}
+                  {isSendingFile ? (pipelineProgress?.label || "Sending…") : formatStagedSize(stagedFile.size)}
                 </span>
               </div>
 
@@ -362,7 +367,14 @@ const MeetingChat = ({ isOpen, onClose, wsRef, dataChannelsRef, roomId, peers, p
               stagedFile={stagedFile}
               onStageFile={handleStageFile}
               onStageError={setFileError}
-              onProgressChange={setSendProgress}
+              onProgressChange={(value) => {
+                if (typeof value === "number") {
+                  setSendProgress(value);
+                  return;
+                }
+
+                setPipelineProgress(value);
+              }}
               disabled={isSendingFile}
             />
 

@@ -3,7 +3,7 @@ import { bufferToBase64 } from "./canonicalize";
 const DB_NAME = "convo-keys";
 const STORE_NAME = "keypairs";
 
-function openDb() {
+const openDb = () => {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DB_NAME, 1);
     request.onupgradeneeded = () => {
@@ -14,7 +14,7 @@ function openDb() {
   });
 }
 
-async function storePrivateKey(userId, privateKey) {
+const storePrivateKey = async (userId, privateKey) => {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readwrite");
@@ -24,7 +24,7 @@ async function storePrivateKey(userId, privateKey) {
   });
 }
 
-export async function getPrivateKey(userId) {
+export const getPrivateKey = async (userId) => {
   const db = await openDb();
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, "readonly");
@@ -34,7 +34,7 @@ export async function getPrivateKey(userId) {
   });
 }
 
-export async function generateAndStoreKeypair(userId) {
+export const generateAndStoreKeypair = async (userId) => {
   const keyPair = await crypto.subtle.generateKey(
     { name: "ECDSA", namedCurve: "P-256" },
     true, // extractable — needed so we can export the public key below
@@ -49,7 +49,7 @@ export async function generateAndStoreKeypair(userId) {
   return { privateKey: keyPair.privateKey, publicKeyBase64 };
 }
 
-export async function registerPublicKey(userId, publicKeyBase64) {
+export const registerPublicKey = async (userId, publicKeyBase64) => {
   const res = await fetch("/api/keys", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

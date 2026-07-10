@@ -1,6 +1,6 @@
 // Shared serialization + buffer helpers used across hashing, signing, verification
 
-export function canonicalize(metadataBlock) {
+export const canonicalize = (metadataBlock) => {
   const sortedKeys = [
     "fileName",
     "fileSize",
@@ -20,7 +20,7 @@ export function canonicalize(metadataBlock) {
   return JSON.stringify(ordered);
 }
 
-export function concatBuffers(...buffers) {
+export const concatBuffers = (...buffers) => {
   const total = buffers.reduce((sum, b) => sum + b.byteLength, 0);
   const result = new Uint8Array(total);
   let offset = 0;
@@ -31,13 +31,13 @@ export function concatBuffers(...buffers) {
   return result.buffer;
 }
 
-export function bufferToHex(buffer) {
+export const bufferToHex = (buffer) => {
   return Array.from(new Uint8Array(buffer))
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
 
-export function hexToBuffer(hex) {
+export const hexToBuffer = (hex) => {
   if (!hex) return new Uint8Array(0).buffer;
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < hex.length; i += 2) {
@@ -46,7 +46,7 @@ export function hexToBuffer(hex) {
   return bytes.buffer;
 }
 
-export function bufferToBase64(buffer) {
+export const bufferToBase64 = (buffer) => {
   const bytes = new Uint8Array(buffer);
   let binary = "";
   for (let i = 0; i < bytes.byteLength; i++) {
@@ -55,7 +55,7 @@ export function bufferToBase64(buffer) {
   return btoa(binary);
 }
 
-export function base64ToBuffer(base64) {
+export const base64ToBuffer = (base64) => {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) {

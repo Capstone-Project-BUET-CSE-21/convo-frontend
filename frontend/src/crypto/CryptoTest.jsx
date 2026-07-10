@@ -5,7 +5,7 @@ import { generateAndStoreKeypair, getPrivateKey } from "./keypair";
 import { signBlock } from "./signing";
 import { importPublicKey, verifyBlock } from "./verify";
 
-export default function CryptoTest() {
+const CryptoTest = () => {
   const [log, setLog] = useState([]);
 
   function print(label, passed, detail = "") {
@@ -153,3 +153,5 @@ export default function CryptoTest() {
     </div>
   );
 }
+
+export default CryptoTest;

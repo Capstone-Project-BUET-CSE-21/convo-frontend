@@ -3,7 +3,7 @@ import { MAGIC, VERSION, HEADER_LENGTH } from "./wireFormat";
 // 4.2 Task 1: exact inverse of buildHeader. Throws on malformed input
 // rather than guessing, so Unmona's Task 4 (surface a clear error state)
 // has something concrete to catch.
-export function parseHeader(buffer) {
+export const parseHeader = (buffer) => {
   if (buffer.byteLength < HEADER_LENGTH) {
     throw new Error("Malformed provenance wrapper: buffer shorter than header");
   }
@@ -44,7 +44,7 @@ export function parseHeader(buffer) {
 
 // This is the exact export name referenced in Unmona's 1.2 Task 2 —
 // coordinate here so nobody has to rename anything downstream.
-export function unwrapPayload(buffer) {
+export const unwrapPayload = (buffer) => {
   return parseHeader(buffer);
 }
 
@@ -52,14 +52,14 @@ export function unwrapPayload(buffer) {
 // linked to its previousHash. Plain Map for now; swap for an IndexedDB
 // wrapper later if chains need to survive a reload without changing
 // reconstructChain's call signature.
-export function createChainStore() {
+export const createChainStore = () => {
   return new Map();
 }
 
 // 4.2 Task 3: if previousHash is set but doesn't resolve, flag it —
 // this is the actual tamper/gap detection, so we never silently treat
 // a gap as "chain just started here."
-export function reconstructChain(signedBlock, chainStore) {
+export const reconstructChain = (signedBlock, chainStore) => {
   const { previousHash } = signedBlock.metadata;
   const priorBlock = previousHash ? chainStore.get(previousHash) ?? null : null;
   const chainBroken = Boolean(previousHash) && priorBlock === null;
