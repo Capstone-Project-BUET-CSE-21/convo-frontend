@@ -4,6 +4,16 @@
    already loaded globally (--brand, --radius-*, etc).
    ============================================================ */
 
+/* ── Wraps a file chip + its optional ProvenanceBadge ── */
+
+.chat-file-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  max-width: 100%;
+}
+
+
 /* ── Shared footprint for every file bubble variant ── */
 
 .chat-file {

@@ -8,7 +8,8 @@ import { getAuthToken } from "../auth/authSession";
 import MeetingChat from "../components/MeetingChat";
 import { ParticipantAvatar, RemoteParticipantTile } from "../components/MeetingRoomHelperComponents";
 import { decodeChunkFrame, reassembleChunkFrames } from "../pipeline/transferFrames";
-import { unwrapPayload } from "../pipeline/chainReconstruct";
+import { unwrapPayload, createChainStore } from "../pipeline/chainReconstruct";
+import { verifyIncomingTransfer } from "../identity/verifyIncomingTransfer";
 
 const WS_URL = import.meta.env.VITE_WS_BASE_URL;
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
@@ -40,6 +41,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
   const iceCandidatesQueueRef = useRef(new Map()); // peerId -> array of RTCIceCandidate
   const dataChannelsRef = useRef(new Map()); // peerId -> RTCDataChannel ("file-transfer")
   const incomingTransfersRef = useRef(new Map()); // peerId -> { meta, chunks, chunkCount, receivedBytes }
+  const chainStoreRef = useRef(createChainStore()); // fileHash -> signedBlock, shared across all peers in this session
   const [peerNames, setPeerNames] = useState(new Map());
 
   const rawStreamRef = useRef(null);
@@ -137,7 +139,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     channel.onmessage = (e) => handleDataChannelMessage(peerId, e.data);
   };
 
-  const handleDataChannelMessage = (peerId, data) => {
+  const handleDataChannelMessage = async (peerId, data) => {
     if (typeof data === "string") {
       let msg;
       try {
@@ -255,6 +257,24 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         });
         const fileUrl = URL.createObjectURL(blob);
 
+        // 5.1 (hash + chain check) → 2.4 (signature check) → 5.2 (identity
+        // mapping). Only ever attempts identity mapping once every check
+        // has passed — see identity/verifyIncomingTransfer.js.
+        let provenance;
+        try {
+          provenance = await verifyIncomingTransfer({
+            signedBlock,
+            fileBytes,
+            chainStore: chainStoreRef.current,
+            peerNames,
+            fallbackName: peerNames.get(peerId) || transfer.meta.fromName,
+            sessionName: roomId,
+          });
+        } catch (err) {
+          console.error("Provenance verification failed unexpectedly:", err);
+          provenance = { valid: false, reason: "hash-mismatch", senderName: null, timestamp: null };
+        }
+
         setChatMessages((prev) => [
           ...prev,
           {
@@ -270,7 +290,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
             fileSize: transfer.meta.fileSize,
             time: transfer.meta.time,
             isMine: false,
-            provenance: signedBlock,
+            provenance,
           },
         ]);
 

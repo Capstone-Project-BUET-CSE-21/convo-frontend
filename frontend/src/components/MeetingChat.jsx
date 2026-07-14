@@ -295,6 +295,7 @@ const MeetingChat = ({ isOpen, onClose, wsRef, dataChannelsRef, roomId, peers, p
                       fileName={m.fileName}
                       fileType={m.fileType}
                       fileSize={m.fileSize}
+                      provenance={m.provenance}
                     />
                   ) : (
                     <div className="chat-bubble__text">{m.text}</div>

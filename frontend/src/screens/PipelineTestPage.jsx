@@ -16,6 +16,9 @@ import {
   createChainStore,
 } from "../pipeline/chainReconstruct";
 import { concatBuffers } from "../crypto/canonicalize"; // re-exported helper
+import { verifyBlockHash, verifyChainLinkage, verifyReceivedBlock } from "../pipeline/hashVerify";
+import { verifyIncomingTransfer } from "../identity/verifyIncomingTransfer";
+import { resolveSenderName, formatRelativeTime } from "../identity/senderIdentity";
 
 
 const API_BASE_URL = import.meta.env.VITE_PIPELINE_API_URL;
@@ -328,6 +331,263 @@ const IntegrationTest = () => {
   );
 }
 
+// ---------------------------------------------------------------
+// Section 4: hash/chain verification + identity mapping.
+// First half is pure unit tests (no backend needed). Second half chains
+// into the same live integration flow IntegrationTest already builds,
+// then feeds the result through verifyIncomingTransfer — including a
+// deliberately tampered variant and a deliberately broken-chain variant.
+// ---------------------------------------------------------------
+const VerificationUnitTests = () => {
+  const [log, setLog] = useState([]);
+
+  function print(label, passed, detail = "") {
+    setLog((prev) => [...prev, { label, passed, detail }]);
+  }
+
+  async function runAllTests() {
+    setLog([]);
+
+    const metadata = {
+      transferId: "11111111-1111-1111-1111-111111111111",
+      sessionId: "22222222-2222-2222-2222-222222222222",
+      senderId: "33333333-3333-3333-3333-333333333333",
+      fileName: "test.txt",
+      fileSize: 5,
+      mimeType: "text/plain",
+      timestamp: "2026-07-07T00:00:00.000Z",
+      previousHash: null,
+    };
+    const fileBuffer = new TextEncoder().encode("hello").buffer;
+    const fileHash = await computeFileHash(fileBuffer, metadata);
+    const signedBlock = { metadata, fileHash, signature: "irrelevant-here" };
+
+    // Test 1: hash matches untampered bytes
+    try {
+      const ok = await verifyBlockHash(signedBlock, fileBuffer);
+      print("verifyBlockHash passes on untampered bytes", ok === true);
+    } catch (e) {
+      print("verifyBlockHash passes on untampered bytes", false, e.message);
+    }
+
+    // Test 2: hash fails on tampered bytes
+    try {
+      const tampered = new TextEncoder().encode("HELLO").buffer;
+      const ok = await verifyBlockHash(signedBlock, tampered);
+      print("verifyBlockHash fails on tampered bytes", ok === false);
+    } catch (e) {
+      print("verifyBlockHash fails on tampered bytes", false, e.message);
+    }
+
+    // Test 3: chain linkage — no previousHash is valid (first block)
+    try {
+      const ok = verifyChainLinkage(signedBlock, null);
+      print("verifyChainLinkage: no previousHash is valid", ok === true);
+    } catch (e) {
+      print("verifyChainLinkage: no previousHash is valid", false, e.message);
+    }
+
+    // Test 4: chain linkage — previousHash set but prior block missing
+    try {
+      const linked = { metadata: { ...metadata, previousHash: "some-hash-not-in-store" } };
+      const ok = verifyChainLinkage(linked, null);
+      print("verifyChainLinkage: unresolved previousHash is rejected", ok === false);
+    } catch (e) {
+      print("verifyChainLinkage: unresolved previousHash is rejected", false, e.message);
+    }
+
+    // Test 5: verifyReceivedBlock reason codes
+    try {
+      const tampered = new TextEncoder().encode("HELLO").buffer;
+      const result = await verifyReceivedBlock(signedBlock, tampered, null);
+      print(
+        "verifyReceivedBlock reports 'hash-mismatch' for tampered bytes",
+        result.valid === false && result.reason === "hash-mismatch",
+        JSON.stringify(result)
+      );
+    } catch (e) {
+      print("verifyReceivedBlock hash-mismatch reason", false, e.message);
+    }
+
+    try {
+      const linked = { metadata: { ...metadata, previousHash: "missing" }, fileHash };
+      const result = await verifyReceivedBlock(linked, fileBuffer, null);
+      print(
+        "verifyReceivedBlock reports 'chain-broken' for an unresolved gap",
+        result.valid === false && result.reason === "chain-broken",
+        JSON.stringify(result)
+      );
+    } catch (e) {
+      print("verifyReceivedBlock chain-broken reason", false, e.message);
+    }
+
+    // Test 6: identity resolution — prefers peerNames, falls back otherwise
+    try {
+      const peerNames = new Map([["33333333-3333-3333-3333-333333333333", "Test User"]]);
+      const resolved = resolveSenderName(metadata.senderId, { peerNames, fallbackName: "wrong" });
+      print("resolveSenderName prefers peerNames map", resolved === "Test User", resolved);
+    } catch (e) {
+      print("resolveSenderName prefers peerNames map", false, e.message);
+    }
+
+    try {
+      const resolved = resolveSenderName(metadata.senderId, { peerNames: new Map(), fallbackName: "Fallback User" });
+      print("resolveSenderName falls back when not in peerNames", resolved === "Fallback User", resolved);
+    } catch (e) {
+      print("resolveSenderName falls back when not in peerNames", false, e.message);
+    }
+
+    // Test 7: relative time formatting is sane for a "just now" timestamp
+    try {
+      const label = formatRelativeTime(new Date().toISOString());
+      print("formatRelativeTime renders 'just now' for the current instant", label === "just now", label);
+    } catch (e) {
+      print("formatRelativeTime renders 'just now'", false, e.message);
+    }
+  }
+
+  return (
+    <Section title="Verification — hash/chain unit tests (client-side, no backend)">
+      <button onClick={runAllTests} style={{ padding: "8px 16px", fontSize: 14 }}>
+        Run Verification Unit Tests
+      </button>
+      <ResultLog log={log} />
+    </Section>
+  );
+};
+
+const VerificationIntegrationTest = () => {
+  const [log, setLog] = useState([]);
+  const [running, setRunning] = useState(false);
+
+  function print(label, passed, detail = "") {
+    setLog((prev) => [...prev, { label, passed, detail }]);
+  }
+
+  async function buildRealSignedBlock() {
+    const sessionId = crypto.randomUUID();
+    const senderId = crypto.randomUUID();
+    const fileText = "Verification integration test file.";
+    const fileBuffer = new TextEncoder().encode(fileText).buffer;
+
+    const { privateKey, publicKeyBase64 } = await generateAndStoreKeypair(senderId);
+    await fetch(`${API_BASE_URL}/api/keys`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: senderId, publicKey: publicKeyBase64, algorithm: "ECDSA-P256" }),
+    });
+
+    const metaRes = await fetch(`${API_BASE_URL}/api/transfer/metadata`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sessionId,
+        senderId,
+        fileName: "debashri-test.txt",
+        fileSize: fileBuffer.byteLength,
+        mimeType: "text/plain",
+      }),
+    });
+    if (!metaRes.ok) throw new Error(`Metadata request failed: ${metaRes.status}`);
+    const metadata = await metaRes.json();
+
+    const fileHash = await computeFileHash(fileBuffer, metadata);
+    const signature = await signBlock(fileHash, metadata, privateKey);
+
+    await fetch(`${API_BASE_URL}/api/transfer/metadata/${metadata.transferId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ fileHash, signature }),
+    });
+
+    const wrapped = embedProvenanceBlock(fileBuffer, metadata, fileHash, signature);
+    const { signedBlock, fileBytes } = unwrapPayload(wrapped);
+    return { signedBlock, fileBytes, senderId };
+  }
+
+  async function runIntegration() {
+    setLog([]);
+    setRunning(true);
+
+    try {
+      // ── Case 1: legitimate, untampered file ──────────────────────────
+      const { signedBlock, fileBytes, senderId } = await buildRealSignedBlock();
+      const chainStore = createChainStore();
+      const peerNames = new Map([[senderId, "Test User"]]);
+
+      const goodResult = await verifyIncomingTransfer({
+        signedBlock,
+        fileBytes,
+        chainStore,
+        peerNames,
+        fallbackName: "Guest",
+        sessionName: "Team Standup",
+      });
+
+      print(
+        "Untampered, correctly signed file verifies + maps identity",
+        goodResult.valid === true && goodResult.senderName === "Test User",
+        JSON.stringify(goodResult)
+      );
+
+      // ── Case 2: same block, but tampered bytes on the wire ───────────
+      const tamperedBytes = new TextEncoder().encode("this is not the file that was signed").buffer;
+      const tamperedResult = await verifyIncomingTransfer({
+        signedBlock,
+        fileBytes: tamperedBytes,
+        chainStore: createChainStore(),
+        peerNames,
+        fallbackName: "Guest",
+      });
+      print(
+        "Tampered file bytes are rejected with 'hash-mismatch'",
+        tamperedResult.valid === false && tamperedResult.reason === "hash-mismatch",
+        JSON.stringify(tamperedResult)
+      );
+
+      // ── Case 3: previousHash points nowhere → chain-broken ───────────
+      const brokenChainBlock = {
+        ...signedBlock,
+        metadata: { ...signedBlock.metadata, previousHash: "some-hash-that-was-never-seen" },
+      };
+      const brokenResult = await verifyIncomingTransfer({
+        signedBlock: brokenChainBlock,
+        fileBytes,
+        chainStore: createChainStore(),
+        peerNames,
+        fallbackName: "Guest",
+      });
+      print(
+        "A dangling previousHash is rejected with 'chain-broken'",
+        brokenResult.valid === false && brokenResult.reason === "chain-broken",
+        JSON.stringify(brokenResult)
+      );
+    } catch (e) {
+      print("Integration run halted", false, e.message);
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <Section title="Verification — full pipeline (live backend, tamper + chain-break cases)">
+      {!API_BASE_URL && (
+        <div style={{ color: "orange", marginBottom: 10 }}>
+          VITE_PIPELINE_API_URL isn&apos;t set — this section needs it to reach the metadata service&apos;s backend.
+        </div>
+      )}
+      <button
+        onClick={runIntegration}
+        disabled={running || !API_BASE_URL}
+        style={{ padding: "8px 16px", fontSize: 14 }}
+      >
+        {running ? "Running…" : "Run Verification Integration Test"}
+      </button>
+      <ResultLog log={log} />
+    </Section>
+  );
+};
+
 const PipelineTestPage = () => {
   return (
     <div style={{ padding: 20, maxWidth: 900, margin: "0 auto" }}>
@@ -344,6 +604,9 @@ const PipelineTestPage = () => {
 
       <ChainTests />
       <IntegrationTest />
+
+      <VerificationUnitTests />
+      <VerificationIntegrationTest />
     </div>
   );
 }

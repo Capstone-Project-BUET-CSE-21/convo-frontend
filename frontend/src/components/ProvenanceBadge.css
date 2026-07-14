@@ -1,0 +1,74 @@
+/* ============================================================
+   ProvenanceBadge — assumes the shared design tokens from
+   App.css / MeetingRoom.css are already loaded globally
+   (--brand, --red, --green, --radius-*, --ink-subtle, etc).
+   ============================================================ */
+
+.provenance-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  padding: 4px 8px;
+  max-width: 100%;
+  font-family: var(--font-body);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  border-radius: var(--radius-sm);
+  line-height: 1.3;
+}
+
+.provenance-badge__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 50%;
+}
+
+.provenance-badge__text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Verified state ── */
+
+.provenance-badge--verified {
+  color: var(--ink-subtle, rgba(255, 255, 255, 0.6));
+  background: rgba(48, 164, 108, 0.1);
+}
+
+.provenance-badge--verified .provenance-badge__icon {
+  color: var(--green);
+  background: rgba(48, 164, 108, 0.18);
+}
+
+/* ── Tampered / rejected state ── */
+
+.provenance-badge--tampered {
+  color: var(--red);
+  background: rgba(229, 72, 77, 0.12);
+  white-space: normal;
+}
+
+.provenance-badge--tampered .provenance-badge__icon {
+  color: var(--red);
+  background: rgba(229, 72, 77, 0.2);
+}
+
+.provenance-badge--tampered .provenance-badge__text {
+  white-space: normal;
+}
+
+@media (max-width: 600px) {
+  .provenance-badge {
+    font-size: 10px;
+    padding: 3px 6px;
+  }
+}
