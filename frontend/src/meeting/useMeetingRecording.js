@@ -36,9 +36,8 @@ const encodeWav = (samples, sampleRate) => {
 
 const useMeetingRecording = ({
   localVideoRef,
+  recordingSourceStreamRef, // the watermarked (own + remote) monitor mix
   roomId,
-  watermarkAudioContextRef,
-  watermarkWorkletNodeRef,
 }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState(null);
@@ -51,28 +50,26 @@ const useMeetingRecording = ({
   const recordingSampleRateRef = useRef(48000);
 
   const startRecording = async () => {
-    const workletAudioContext = watermarkAudioContextRef.current;
-    const workletNode = watermarkWorkletNodeRef.current;
-    const localStream = localVideoRef.current?.srcObject;
+    const sourceStream = recordingSourceStreamRef?.current;
 
     let audioCtx = null;
     let sourceNode = null;
 
-    if (workletAudioContext && workletNode) {
-      // Match WatermarkTestPage: capture directly from watermark worklet output.
-      audioCtx = workletAudioContext;
-      sourceNode = workletNode;
-      recordingSourceModeRef.current = "worklet";
-    } else {
-      // Fallback for edge cases where watermark pipeline is not ready yet.
+    if (sourceStream?.getAudioTracks().length) {
+      // Primary path: the watermarked mix (own mic + every remote peer).
       audioCtx = new AudioContext();
-      sourceNode = localStream?.getAudioTracks().length
-        ? audioCtx.createMediaStreamSource(localStream)
-        : null;
+      sourceNode = audioCtx.createMediaStreamSource(sourceStream);
+      recordingSourceModeRef.current = "playback";
+    } else if (localVideoRef.current?.srcObject?.getAudioTracks().length) {
+      audioCtx = new AudioContext();
+      sourceNode = audioCtx.createMediaStreamSource(localVideoRef.current.srcObject);
       recordingSourceModeRef.current = "fallback";
+    } else {
+      recordingSourceModeRef.current = "none";
     }
 
     if (!audioCtx || !sourceNode) {
+      console.error("No audio source available to record.");
       return;
     }
 
@@ -89,25 +86,16 @@ const useMeetingRecording = ({
         recordingSamplesRef.current.push(new Float32Array(e.data));
       };
 
-      // Keep capture silent to avoid local echo.
+      // Keep capture silent to avoid feeding back into the live mix/speakers.
       silentDestination = audioCtx.createMediaStreamDestination();
 
-       // Reset the worklet PRNG so detector starts from frame 0
-      if (recordingSourceModeRef.current === "worklet" && workletNode) {
-        workletNode.port.postMessage({ type: 'reset-prng' });
-      }
-
-      
       sourceNode.connect(recorderNode);
       recorderNode.connect(silentDestination);
 
       recordingScriptNodeRef.current = recorderNode;
     } catch (err) {
       console.error('recorder worklet registration failed', err);
-      // Abort recording when AudioWorklet is unavailable
-      if (audioCtx && recordingSourceModeRef.current === 'fallback') {
-        audioCtx.close();
-      }
+      audioCtx.close();
       setIsRecording(false);
       return;
     }
@@ -122,7 +110,6 @@ const useMeetingRecording = ({
       return;
     }
 
-    // Disconnect recorder node (AudioWorkletNode or ScriptProcessorNode)
     recordingScriptNodeRef.current?.disconnect();
     recordingScriptNodeRef.current = null;
     recordingSilentDestRef.current = null;
@@ -140,9 +127,7 @@ const useMeetingRecording = ({
     const wavBlob = encodeWav(pcm, recordingSampleRateRef.current);
     setRecordedBlob(wavBlob);
 
-    if (recordingSourceModeRef.current === "fallback") {
-      recordingAudioCtxRef.current.close();
-    }
+    recordingAudioCtxRef.current.close();
     recordingAudioCtxRef.current = null;
     recordingScriptNodeRef.current = null;
     recordingSourceModeRef.current = "none";

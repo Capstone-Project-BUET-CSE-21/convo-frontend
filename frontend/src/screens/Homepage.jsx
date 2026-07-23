@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
-import "./Homepage.css"; // Import your CSS file
+import "./Homepage.css";
 import { AuthSidebar } from "../components/SharedComponents";
 
 const Homepage = ({ homepageAttributes }) => {

@@ -90,6 +90,7 @@ export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef }) => 
         className={`participant-video ${!hasVideo ? "participant-video--hidden" : ""}`}
         autoPlay
         playsInline
+        muted
       />
       {!hasVideo && (
         <ParticipantAvatar name={peerName || "Guest"} size="large" />

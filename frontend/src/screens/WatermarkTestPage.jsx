@@ -112,7 +112,7 @@ const WatermarkTestPage = () => {
             <input
               ref={fileRef}
               type="file"
-              accept="audio/wav,audio/*"
+              accept="audio/*"
               style={{ display: "none" }}
               onChange={(e) => setFile(e.target.files[0] || null)}
             />
