@@ -9,10 +9,6 @@ const emitStage = (sessionCtx, stage) => {
 };
 
 export const requestMetadataBlock = async (sessionCtx, file) => {
-  if (!CONFIDENTIALITY_API_BASE_URL) {
-    throw new Error("Confidentiality service URL is not configured");
-  }
-
   const response = await fetch(`${CONFIDENTIALITY_API_BASE_URL}/api/transfer/metadata`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
