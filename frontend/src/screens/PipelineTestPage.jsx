@@ -14,13 +14,13 @@ import {
   unwrapPayload,
   reconstructChain,
   createChainStore,
+  walkChain,
+  buildChainIndex,
 } from "../pipeline/chainReconstruct";
 import { concatBuffers } from "../crypto/canonicalize"; // re-exported helper
 import { verifyBlockHash, verifyChainLinkage, verifyReceivedBlock } from "../pipeline/hashVerify";
 import { verifyIncomingTransfer } from "../identity/verifyIncomingTransfer";
 import { resolveSenderName, formatRelativeTime } from "../identity/senderIdentity";
-import { walkChain, buildChainIndex } from "../pipeline/chainReconstruct";
-
 
 const API_BASE_URL = import.meta.env.VITE_PIPELINE_API_URL;
 
@@ -76,8 +76,10 @@ Section.propTypes = {
 };
 
 // ---------------------------------------------------------------
-// Section 2: Suchi's chain embed/reconstruct tests (client-side only,
-// no backend needed — mirrors the node:test file 1:1)
+// Section: Suchi's original chain embed/reconstruct tests
+// (round trip, malformed wrapper, single-hop gap detection).
+// This is what was missing — <ChainTests /> was referenced in the
+// render list below with no matching component definition.
 // ---------------------------------------------------------------
 const ChainTests = () => {
   const [log, setLog] = useState([]);
@@ -201,6 +203,114 @@ const ChainTests = () => {
     </Section>
   );
 }
+
+// ---------------------------------------------------------------
+// Section: Suchi v2's multi-hop walkChain tests
+// ---------------------------------------------------------------
+const ChainWalkTests = () => {
+  const [log, setLog] = useState([]);
+
+  function print(label, passed, detail = "") {
+    setLog((prev) => [...prev, { label, passed, detail }]);
+  }
+
+  const alwaysValid = async () => ({ valid: true });
+  const alwaysAuthorized = async () => true;
+
+  async function runAllTests() {
+    setLog([]);
+
+    try {
+      const entryC = { fileHash: "hash-c", previousHash: "hash-b" };
+      const entryB = { fileHash: "hash-b", previousHash: "hash-a" };
+      const entryA = { fileHash: "hash-a", previousHash: null };
+      const index = buildChainIndex([entryA, entryB, entryC]);
+
+      const result = await walkChain(entryC, index, {
+        verifyHop: alwaysValid,
+        isAuthorizedHop: alwaysAuthorized,
+      });
+
+      print(
+        "walkChain reaches the root across 3 hops, all ok",
+        result.stopReason === "root" && result.hops.length === 3,
+        JSON.stringify(result.hops.map((h) => h.status))
+      );
+    } catch (e) {
+      print("walkChain multi-hop to root", false, e.message);
+    }
+
+    try {
+      const entryB = { fileHash: "hash-b", previousHash: "hash-does-not-exist" };
+      const index = buildChainIndex([entryB]);
+      const result = await walkChain(entryB, index, {
+        verifyHop: alwaysValid,
+        isAuthorizedHop: alwaysAuthorized,
+      });
+      print(
+        "walkChain reports 'broken' for an unresolvable previousHash",
+        result.stopReason === "broken",
+        JSON.stringify(result)
+      );
+    } catch (e) {
+      print("walkChain broken link", false, e.message);
+    }
+
+    try {
+      const entryB = { fileHash: "hash-b", previousHash: "hash-a", senderId: "mallory" };
+      const entryA = { fileHash: "hash-a", previousHash: null, senderId: "alice" };
+      const index = buildChainIndex([entryA, entryB]);
+      const isAuthorizedHop = async (e) => e.senderId !== "mallory";
+
+      const result = await walkChain(entryB, index, { verifyHop: alwaysValid, isAuthorizedHop });
+      print(
+        "walkChain reports 'unauthorized', distinct from 'broken'",
+        result.stopReason === "unauthorized" && result.stopReason !== "broken",
+        JSON.stringify(result)
+      );
+    } catch (e) {
+      print("walkChain unauthorized hop", false, e.message);
+    }
+
+    try {
+      const malformedFromRealBackendShape = [
+        {
+          transferId: "t1",
+          sessionId: "s1",
+          originSessionId: "s1",
+          senderId: "u1",
+          fileName: "x.txt",
+          fileSize: 5,
+          mimeType: "text/plain",
+          timestamp: "2026-07-07T00:00:00Z",
+          previousHash: null,
+          contentHash: "some-content-hash",
+        },
+      ];
+      let threw = false;
+      try {
+        buildChainIndex(malformedFromRealBackendShape);
+      } catch (e) {
+        threw = /missing fileHash/.test(e.message);
+      }
+      print(
+        "buildChainIndex still catches Fariha's current DTO gap (expected until she fixes it)",
+        threw
+      );
+    } catch (e) {
+      print("DTO gap guard", false, e.message);
+    }
+  }
+
+  return (
+    <Section title="Suchi v2 — multi-hop walkChain (client-side, mocked index)">
+      <button onClick={runAllTests} style={{ padding: "8px 16px", fontSize: 14 }}>
+        Run Chain Walk Tests
+      </button>
+      <ResultLog log={log} />
+    </Section>
+  );
+};
 
 // ---------------------------------------------------------------
 // Section 3: full pipeline integration — Fariha's live endpoints +
@@ -604,6 +714,7 @@ const PipelineTestPage = () => {
       </Section>
 
       <ChainTests />
+      <ChainWalkTests />
       <IntegrationTest />
 
       <VerificationUnitTests />
