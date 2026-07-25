@@ -19,6 +19,7 @@ import { concatBuffers } from "../crypto/canonicalize"; // re-exported helper
 import { verifyBlockHash, verifyChainLinkage, verifyReceivedBlock } from "../pipeline/hashVerify";
 import { verifyIncomingTransfer } from "../identity/verifyIncomingTransfer";
 import { resolveSenderName, formatRelativeTime } from "../identity/senderIdentity";
+import { walkChain, buildChainIndex } from "../pipeline/chainReconstruct";
 
 
 const API_BASE_URL = import.meta.env.VITE_PIPELINE_API_URL;
