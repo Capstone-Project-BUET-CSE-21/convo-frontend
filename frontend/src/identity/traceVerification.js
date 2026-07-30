@@ -102,7 +102,7 @@ export const makeIsAuthorizedHop = (baseUrl) => async (entry) => {
   try {
     const participants = await fetchSessionParticipants(sessionId, baseUrl);
     return participants.has(entry.senderId);
-  } catch (err) {
+  } catch {
     // Fail closed: if we can't confirm authorization, treat the hop as
     // unauthorized rather than silently passing it through. The trace
     // screen surfaces this distinctly (see FileTraceScreen.jsx).

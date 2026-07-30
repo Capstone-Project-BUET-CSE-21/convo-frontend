@@ -59,7 +59,7 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
   if (state.status === "error") {
     return (
       <div className="file-trace-screen file-trace-screen--error" role="alert">
-        Couldn't load this file's history: {state.error}
+        Couldn’t load this file’s history: {state.error}
       </div>
     );
   }
@@ -117,7 +117,7 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
 
               {isUnauthorized && (
                 <div className="file-trace-hop__flag file-trace-hop__flag--unauthorized" role="alert">
-                  ⚠ Unauthorized person here — {nameFor(entry?.senderId)} wasn't a permitted
+                  ⚠ Unauthorized person here — {nameFor(entry?.senderId)} wasn’t a permitted
                   participant of that session when this file was shared.
                 </div>
               )}
@@ -127,7 +127,7 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
       </ol>
 
       {state.stopReason === "root" && (
-        <p className="file-trace-screen__footnote">Traced back to the file's original share.</p>
+        <p className="file-trace-screen__footnote">Traced back to the file’s original share.</p>
       )}
     </div>
   );
