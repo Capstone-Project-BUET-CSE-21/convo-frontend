@@ -97,7 +97,7 @@ const WatermarkTestPage = () => {
         {/* Inputs */}
         <div className="wt-fields">
           <div className="wt-field">
-            <label className="wt-label">Session ID</label>
+            <label className="wt-label">Meeting Room ID</label>
             <input
               className="wt-input"
               type="text"
