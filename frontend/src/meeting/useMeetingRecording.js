@@ -37,6 +37,7 @@ const encodeWav = (samples, sampleRate) => {
 const useMeetingRecording = ({
   localVideoRef,
   recordingSourceStreamRef, // the watermarked (own + remote) monitor mix
+  playbackWorkletNodeRef,   // the AudioWorkletNode embedding that watermark
   roomId,
 }) => {
   const [isRecording, setIsRecording] = useState(false);
@@ -60,7 +61,19 @@ const useMeetingRecording = ({
       audioCtx = new AudioContext();
       sourceNode = audioCtx.createMediaStreamSource(sourceStream);
       recordingSourceModeRef.current = "playback";
+
+      // CRITICAL: the detector assumes the recording starts from a known,
+      // frame-0-aligned point in the watermark's PN sequence. The playback
+      // worklet has been running continuously since the call started, so
+      // without this reset, the recorded segment begins at an arbitrary,
+      // unrecoverable offset into that sequence — which is indistinguishable
+      // from noise to the detector (this is what "no watermark detected" /
+      // negative scores for every user means in practice).
+      playbackWorkletNodeRef?.current?.port.postMessage({ type: 'reset-prng' });
     } else if (localVideoRef.current?.srcObject?.getAudioTracks().length) {
+      // Fallback for edge cases where the watermark mix isn't ready yet:
+      // record raw local mic only rather than failing outright. This
+      // won't include remote audio or a watermark.
       audioCtx = new AudioContext();
       sourceNode = audioCtx.createMediaStreamSource(localVideoRef.current.srcObject);
       recordingSourceModeRef.current = "fallback";

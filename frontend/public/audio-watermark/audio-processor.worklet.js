@@ -1,5 +1,3 @@
-/* eslint-disable no-undef */
-
 function _hashString(str) {
   let hash = 5381;
   for (let i = 0; i < str.length; i++) {
@@ -18,14 +16,20 @@ function _createMulberry32(seed) {
   };
 }
 
-function _generatePN(seed, length) {
-  const numericSeed = typeof seed === "string" ? _hashString(seed) : seed >>> 0;
-  const rand = _createMulberry32(numericSeed);
-  const pn = new Float32Array(length);
-  for (let i = 0; i < length; i++) {
-    pn[i] = rand() * 2.0 - 1.0;
-  }
-  return pn;
+/**
+ * Jump a mulberry32 state ahead by `numDraws` calls in O(1).
+ *
+ * mulberry32's state update is a plain linear counter increment applied
+ * BEFORE each call's output scrambling — the scrambling never feeds back
+ * into the counter — so the state after N calls is just the initial state
+ * plus N * increment (mod 2^32), computable directly instead of by
+ * stepping through N calls one at a time. This is what lets each frame
+ * jump straight to its position within the current cycle, rather than
+ * needing to replay every frame since the cycle began.
+ */
+function _stateAfterDraws(initialState, numDraws) {
+  const INC = 0x6d2b79f5;
+  return (initialState + numDraws * INC) >>> 0;
 }
 
 function _fft(re, im, invert) {
@@ -108,15 +112,26 @@ class AudioProcessor extends AudioWorkletProcessor {
 
     this._analysisBuf = new Float32Array(this._analysisSize);
     this._olaAcc = new Float32Array(this._analysisSize);
-    this._window = _hannWindow(this._analysisSize); 
+    this._window = _hannWindow(this._analysisSize);
 
-    this._marginLinear = Math.pow(10, (config.alpha ?? 1) / 20); 
+    this._marginLinear = Math.pow(10, (config.alpha ?? 1) / 20);
     this._seed = config.seed || 42;
-    this._rand = _createMulberry32(
-      typeof this._seed === "string"
-        ? _hashString(this._seed)
-        : this._seed >>> 0,
+    this._baseSeedState =
+      typeof this._seed === "string" ? _hashString(this._seed) : this._seed >>> 0;
+
+    // REPEATING TAG: the watermark now repeats every `cycleSeconds` instead
+    // of running as one never-repeating stream for the whole call. Frame f's
+    // pattern depends only on (f mod hopsPerCycle) — never on how long the
+    // call has been running — so ANY recording at least one cycle long is
+    // guaranteed to contain a complete repetition somewhere in it, and the
+    // detector only ever needs to search within one cycle, not the whole
+    // call. See _randForFrame below.
+    this._cycleSeconds = config.cycleSeconds || 8;
+    this._hopsPerCycle = Math.max(
+      1,
+      Math.round((this._cycleSeconds * this.sampleRate) / this._bufferSize)
     );
+    this._frameIndex = 0;
 
     this._numBands = config.numBands || 24;
     this._binToBand = this._buildBinToBandMap(
@@ -132,17 +147,18 @@ class AudioProcessor extends AudioWorkletProcessor {
     this._bandEnergy = new Float32Array(this._numBands);
     this._bandFlatness = new Float32Array(this._numBands);
     this._bandThreshold = new Float32Array(this._numBands);
+  }
 
-    this.port.onmessage = (e) => {
-      if (e.data?.type === 'reset-prng') {
-        this._rand = _createMulberry32(
-          typeof this._seed === "string"
-            ? _hashString(this._seed)
-            : this._seed >>> 0
-        );
-        console.log('[worklet] PRNG reset for recording start');
-      }
-    };
+  /**
+   * Returns a fresh PRNG positioned at the start of this frame's slot
+   * within the current cycle. Frame index f and frame index (f +
+   * hopsPerCycle) always produce the identical generator here — that's
+   * the entire mechanism behind the repeat.
+   */
+  _randForFrame(frameIndex) {
+    const cyclePos = frameIndex % this._hopsPerCycle;
+    const jumped = _stateAfterDraws(this._baseSeedState, cyclePos * this._analysisSize);
+    return _createMulberry32(jumped);
   }
 
   _pushIn(samples) {
@@ -197,7 +213,7 @@ class AudioProcessor extends AudioWorkletProcessor {
 
     if (!inputChannel || !outputChannel) return true;
 
-    const frameSize = inputChannel.length; 
+    const frameSize = inputChannel.length;
 
     this._pushIn(inputChannel);
 
@@ -213,8 +229,8 @@ class AudioProcessor extends AudioWorkletProcessor {
       this._inFilled < this._bufferSize &&
       this._outFilled < frameSize
     ) {
-      const chunk = new Float32Array(this._bufferSize); 
-      this._pullIn(chunk.subarray(0, this._inFilled)); 
+      const chunk = new Float32Array(this._bufferSize);
+      this._pullIn(chunk.subarray(0, this._inFilled));
       const processed = this._processChunk(chunk);
       this._pushOut(processed);
     }
@@ -255,15 +271,15 @@ class AudioProcessor extends AudioWorkletProcessor {
       const count = Math.max(bandCount[b], 1);
       const geoMean = Math.exp(bandLogSum[b] / count);
       const arithMean = this._bandEnergy[b] / count;
-      this._bandFlatness[b] = geoMean / (arithMean + 1e-12); 
+      this._bandFlatness[b] = geoMean / (arithMean + 1e-12);
       this._bandEnergy[b] = arithMean;
     }
 
     for (let b = 0; b < this._numBands; b++) {
       const flat = Math.min(Math.max(this._bandFlatness[b], 0), 1);
-      const offsetDb = 18 - flat * 12; 
+      const offsetDb = 18 - flat * 12;
       const energyDb = 10 * Math.log10(this._bandEnergy[b] + 1e-12);
-      this._bandThreshold[b] = Math.pow(10, (energyDb - offsetDb) / 10); 
+      this._bandThreshold[b] = Math.pow(10, (energyDb - offsetDb) / 10);
     }
 
     for (let b = 0; b < this._numBands; b++) {
@@ -276,10 +292,17 @@ class AudioProcessor extends AudioWorkletProcessor {
         0.5 * this._bandThreshold[b] + 0.25 * left + 0.25 * right;
     }
 
+    // Repeating-tag PN generation — this frame's noise pattern comes from
+    // its position WITHIN THE CURRENT CYCLE (see _randForFrame), so it's
+    // identical every time this cycle position comes back around,
+    // regardless of how long the call has been running overall.
+    const rand = this._randForFrame(this._frameIndex);
     for (let k = 0; k < N; k++) {
-      this._pnRe[k] = this._rand() * 2 - 1;
+      this._pnRe[k] = rand() * 2 - 1;
       this._pnIm[k] = 0;
     }
+    this._frameIndex++;
+
     _fft(this._pnRe, this._pnIm, false);
 
     for (let k = 0; k < N / 2; k++) {
@@ -289,7 +312,7 @@ class AudioProcessor extends AudioWorkletProcessor {
           this._pnRe[k] * this._pnRe[k] + this._pnIm[k] * this._pnIm[k],
         ) + 1e-12;
       const gain =
-        (Math.sqrt(this._bandThreshold[b]) * this._marginLinear) / mag; 
+        (Math.sqrt(this._bandThreshold[b]) * this._marginLinear) / mag;
       this._pnRe[k] *= gain;
       this._pnIm[k] *= gain;
       const mirror = (N - k) % N;

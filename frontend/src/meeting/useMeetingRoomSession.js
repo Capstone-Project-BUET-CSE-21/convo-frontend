@@ -56,6 +56,7 @@ const useMeetingRoomSession = ({
   } = useMeetingRecording({
     localVideoRef,
     recordingSourceStreamRef: playbackStreamRef,
+    playbackWorkletNodeRef,
     roomId,
   });
 

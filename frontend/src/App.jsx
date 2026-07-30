@@ -97,7 +97,6 @@ const App = () => {
         <Route path="/home" element={authUser ? <Homepage homepageAttributes={homepageAttributes} /> : <Navigate to="/auth" replace />} />
         <Route path="/room/:roomId" element={authUser ? <MeetingRoom meetingRoomAttributes={meetingRoomAttributes} /> : <Navigate to="/auth" replace />} />
         <Route path="/watermark-test" element={authUser ? <WatermarkTestPage /> : <Navigate to="/auth" replace />} />
-        <Route path="/watermark-test" element={authUser ? <WatermarkTestPage /> : <Navigate to="/auth" replace />} />
         <Route path="/pipeline-test" element={authUser ? <PipelineTestPage /> : <Navigate to="/auth" replace />} />
         <Route path="/file-sharing-test" element={authUser ? <FileSharingTestPage /> : <Navigate to="/auth" replace />} />
       </Routes>
