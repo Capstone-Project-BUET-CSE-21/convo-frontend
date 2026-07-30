@@ -72,3 +72,25 @@
     padding: 3px 6px;
   }
 }
+
+/* Append to ProvenanceBadge.css.
+   No --amber/--warn token exists yet in App.css, so this uses a literal
+   amber (#c98a1f) consistent with the --red/--green pattern above —
+   swap in a shared token if/when one gets added. */
+
+/* ── Unauthorized-hop state (distinct from tampered) ── */
+
+.provenance-badge--unauthorized {
+  color: #c98a1f;
+  background: rgba(201, 138, 31, 0.12);
+  white-space: normal;
+}
+
+.provenance-badge--unauthorized .provenance-badge__icon {
+  color: #c98a1f;
+  background: rgba(201, 138, 31, 0.2);
+}
+
+.provenance-badge--unauthorized .provenance-badge__text {
+  white-space: normal;
+}

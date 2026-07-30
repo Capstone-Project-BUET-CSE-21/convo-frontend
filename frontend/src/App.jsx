@@ -6,6 +6,7 @@ import Homepage from './screens/Homepage'
 import AuthPage from './screens/AuthPage'
 import WatermarkTestPage from './screens/WatermarkTestPage'
 import PipelineTestPage from './screens/PipelineTestPage'
+import FileSharingTestPage from './screens/FileSharingTestPage'
 import { clearAuthSession, getAuthToken, getAuthUser, saveAuthSession } from './auth/authSession'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
@@ -98,6 +99,7 @@ const App = () => {
         <Route path="/watermark-test" element={authUser ? <WatermarkTestPage /> : <Navigate to="/auth" replace />} />
         <Route path="/watermark-test" element={authUser ? <WatermarkTestPage /> : <Navigate to="/auth" replace />} />
         <Route path="/pipeline-test" element={authUser ? <PipelineTestPage /> : <Navigate to="/auth" replace />} />
+        <Route path="/file-sharing-test" element={authUser ? <FileSharingTestPage /> : <Navigate to="/auth" replace />} />
       </Routes>
     </>
   )
