@@ -23,6 +23,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         copiedLink,
         isChatOpen,
         hasUnreadChat,
+        isPlaybackReady,
         chatMessages,
         localVideoRef: sessionLocalVideoRef,
         remoteVideosRef: sessionRemoteVideosRef,
@@ -108,6 +109,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
                 peerNames={peerNames}
                 isAudioEnabled={isAudioEnabled}
                 isVideoEnabled={isVideoEnabled}
+                isPlaybackReady={isPlaybackReady}
                 localVideoRef={sessionLocalVideoRef}
                 remoteVideosRef={sessionRemoteVideosRef}
             />

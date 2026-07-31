@@ -7,11 +7,16 @@ const MeetingRoomScene = ({
   peerNames,
   isAudioEnabled,
   isVideoEnabled,
+  isPlaybackReady,
   localVideoRef,
   remoteVideosRef,
 }) => {
   const totalParticipants = peers.length + 1;
   const gridDataAttr = { "data-tile-count": totalParticipants };
+  // Fail-closed: even with the camera on, don't render video until the
+  // watermarked playback path is confirmed live (see useMeetingRoomSession's
+  // isPlaybackReady).
+  const isLocalVideoVisible = isVideoEnabled && isPlaybackReady;
 
   return (
     <main className="meeting-stage">
@@ -19,13 +24,13 @@ const MeetingRoomScene = ({
         <div className="participant-card participant-card--self">
           <video
             ref={localVideoRef}
-            className={`participant-video ${!isVideoEnabled ? "participant-video--hidden" : ""}`}
+            className={`participant-video ${!isLocalVideoVisible ? "participant-video--hidden" : ""}`}
             autoPlay
             playsInline
             muted
           />
 
-          {!isVideoEnabled && (
+          {!isLocalVideoVisible && (
             <ParticipantAvatar name={authUser.displayName} size="large" />
           )}
 
@@ -52,6 +57,7 @@ const MeetingRoomScene = ({
             peerId={peerId}
             peerName={peerNames.get(peerId) || "Guest"}
             remoteVideosRef={remoteVideosRef}
+            isPlaybackReady={isPlaybackReady}
           />
         ))}
 
@@ -73,6 +79,7 @@ MeetingRoomScene.propTypes = {
   peerNames: PropTypes.instanceOf(Map).isRequired,
   isAudioEnabled: PropTypes.bool.isRequired,
   isVideoEnabled: PropTypes.bool.isRequired,
+  isPlaybackReady: PropTypes.bool.isRequired,
   localVideoRef: PropTypes.shape({ current: PropTypes.any }).isRequired,
   remoteVideosRef: PropTypes.shape({ current: PropTypes.any }).isRequired,
 };

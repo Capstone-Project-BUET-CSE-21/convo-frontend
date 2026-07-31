@@ -28,9 +28,14 @@ export const ParticipantAvatar = ({ name, size = "large" }) => (
 // RemoteParticipantTile — a single remote peer tile (video or avatar)
 // ---------------------------------------------------------------------------
 
-export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef }) => {
+export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef, isPlaybackReady }) => {
   const videoRef = useRef(null);
-  const [hasVideo, setHasVideo] = useState(false);
+  // Tracks whether the peer's stream actually carries an enabled video
+  // track. Rendering also requires isPlaybackReady (fail-closed gate on
+  // watermarked playback — see useMeetingRoomSession), kept as a separate
+  // prop rather than folded in here so a later isPlaybackReady flip is
+  // picked up immediately without waiting on a track event to re-run this.
+  const [hasTrackVideo, setHasTrackVideo] = useState(false);
 
   useEffect(() => {
     const stream = remoteVideosRef.current.get(peerId);
@@ -40,7 +45,7 @@ export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef }) => 
 
     const checkVideo = () => {
       const videoTracks = stream.getVideoTracks();
-      setHasVideo(videoTracks.length > 0 && videoTracks[0].enabled);
+      setHasTrackVideo(videoTracks.length > 0 && videoTracks[0].enabled);
     };
 
     checkVideo();
@@ -83,6 +88,8 @@ export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef }) => 
     };
   }, [peerId, remoteVideosRef]);
 
+  const hasVideo = hasTrackVideo && isPlaybackReady;
+
   return (
     <div className="participant-card">
       <video
@@ -113,4 +120,5 @@ RemoteParticipantTile.propTypes = {
   remoteVideosRef: PropTypes.shape({
     current: PropTypes.instanceOf(Map),
   }).isRequired,
+  isPlaybackReady: PropTypes.bool.isRequired,
 };

@@ -1,7 +1,7 @@
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import PropTypes from "prop-types";
 import "./ChatFileShare.css";
-import { prepareFileForTransfer } from "../pipeline/provenancePipeline";
+import { prepareFileForTransfer, ProvenanceLinkError } from "../pipeline/provenancePipeline";
 import { splitBufferIntoChunkFrames, DATA_CHANNEL_CHUNK_PAYLOAD_BYTES } from "../pipeline/transferFrames";
 import { getPrivateKey } from "../crypto/keypair";
 
@@ -239,6 +239,12 @@ const ChatFileShare = forwardRef(function ChatFileShare(
         fileSize: file.size,
         time,
       });
+    } catch (err) {
+      if (err instanceof ProvenanceLinkError) {
+        onStageError(err.message);
+        return;
+      }
+      throw err;
     } finally {
       onProgressChange(null);
     }
