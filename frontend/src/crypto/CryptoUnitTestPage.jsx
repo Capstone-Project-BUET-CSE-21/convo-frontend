@@ -98,7 +98,7 @@ export default function CryptoUnitTestPage() {
             const charlieResult = await decryptPayload(envelope, { recipientId: charlie });
             print(new TextDecoder().decode(charlieResult) === "secret file from Alice to the group"
                 ? "✅ Charlie decrypted correctly" : "❌ Charlie mismatch");
-            const anisaResult = await decryptPayload(envelope, { recipientId: anisa });
+            //const anisaResult = await decryptPayload(envelope, { recipientId: anisa });
             print(new TextDecoder().decode(charlieResult) === "secret file from Alice to the group"
                 ? "✅ Anisa decrypted correctly" : "❌ Charlie mismatch");
         } catch (err) {
@@ -204,7 +204,7 @@ export default function CryptoUnitTestPage() {
                         onChange={(e) => setCurrentUserIdInput(e.target.value)}
                         style={{ width: 320 }}
                     />
-                    <button onClick={provisionUser}>Provision this user's keys</button>
+                    <button onClick={provisionUser}>Provision this users keys</button>
                 </div>
             </div>
         </div>

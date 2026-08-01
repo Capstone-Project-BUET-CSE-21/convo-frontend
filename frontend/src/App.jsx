@@ -10,6 +10,7 @@ import FileSharingTestPage from './screens/FileSharingTestPage'
 import { clearAuthSession, getAuthToken, getAuthUser, saveAuthSession } from './auth/authSession'
 import CryptoUnitTestPage from './crypto/CryptoUnitTestPage'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { ensureUserHasKeys } from './crypto/keypair';
 
 const App = () => {
   const navigate = useNavigate();
