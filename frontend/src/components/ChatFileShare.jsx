@@ -4,6 +4,7 @@ import "./ChatFileShare.css";
 import { prepareFileForTransfer, ProvenanceLinkError } from "../pipeline/provenancePipeline";
 import { splitBufferIntoChunkFrames, DATA_CHANNEL_CHUNK_PAYLOAD_BYTES } from "../pipeline/transferFrames";
 import { getPrivateKey } from "../crypto/keypair";
+import { encryptPayload as buildEncryptedEnvelope } from "../pipeline/encryptionEnvelope";
 
 const EVERYONE = "__everyone__";
 
@@ -134,7 +135,7 @@ const ChatFileShare = forwardRef(function ChatFileShare(
     const targets = targetPeerIds
       .map((peerId) => ({ peerId, channel: dataChannelsRef.current?.get(peerId) }))
       .filter(({ channel }) => channel);
-
+    console.log("roomId being sent as sessionId:", roomId);
     if (targets.length === 0) {
       onStageError("No connected peers to send this file to right now.");
       return;
@@ -177,7 +178,8 @@ const ChatFileShare = forwardRef(function ChatFileShare(
           progress: stage.progress ?? progressByStage[stage.phase] ?? 0,
         });
       },
-      encryptPayload: async (wrappedBuffer) => wrappedBuffer,
+      encryptPayload: async (wrappedBuffer, { encryptionKeys }) =>
+        buildEncryptedEnvelope(wrappedBuffer, { senderId: currentUser.id, encryptionKeys }),
     };
 
     // Track how far along each target peer's transfer is so the tray can

@@ -6,6 +6,7 @@ import { decodeChunkFrame, reassembleChunkFrames } from "../pipeline/transferFra
 import { unwrapPayload, createChainStore } from "../pipeline/chainReconstruct";
 import { verifyIncomingTransfer } from "../identity/verifyIncomingTransfer";
 import useMeetingRecording from "./useMeetingRecording";
+import { decryptPayload } from "../pipeline/encryptionEnvelope";
 
 const WS_URL = import.meta.env.VITE_WS_BASE_URL;
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
@@ -191,11 +192,33 @@ const useMeetingRoomSession = ({
           return;
         }
 
+        // with:
+        let decryptedBuffer;
+        try {
+          decryptedBuffer = await decryptPayload(wrappedBuffer, { recipientId: authUser.id });
+        } catch (err) {
+          setChatMessages((prev) => [
+            ...prev,
+            {
+              id: Date.now() + Math.random(),
+              type: "chat",
+              from: peerId,
+              fromName: peerNames.get(peerId) || transfer.meta.fromName,
+              to: transfer.meta.to === "__everyone__" ? "__everyone__" : authUser.id,
+              text: `Could not decrypt file: ${err.message}`,
+              time: Date.now(),
+              isMine: false,
+              error: true,
+            },
+          ]);
+          incomingTransfersRef.current.delete(peerId);
+          return;
+        }
         let signedBlock;
         let fileBytes;
         try {
-          ({ signedBlock, fileBytes } = unwrapPayload(wrappedBuffer));
-        } catch (err) {
+          ({ signedBlock, fileBytes } = unwrapPayload(decryptedBuffer));
+        } catch (err) { 
           setChatMessages((prev) => [
             ...prev,
             {
@@ -462,7 +485,7 @@ const useMeetingRoomSession = ({
 
       if (playbackAudioRef.current) {
         playbackAudioRef.current.srcObject = result.stream;
-        playbackAudioRef.current.play?.().catch(() => {});
+        playbackAudioRef.current.play?.().catch(() => { });
       }
       setIsPlaybackReady(true);
     } catch (err) {
@@ -472,7 +495,7 @@ const useMeetingRoomSession = ({
       // it would otherwise be recordable without the traceable watermark.
       if (playbackAudioRef.current && localMixBusRef.current) {
         playbackAudioRef.current.srcObject = localMixBusRef.current.mixedStream;
-        playbackAudioRef.current.play?.().catch(() => {});
+        playbackAudioRef.current.play?.().catch(() => { });
       }
     }
   };

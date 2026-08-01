@@ -8,7 +8,7 @@ import WatermarkTestPage from './screens/WatermarkTestPage'
 import PipelineTestPage from './screens/PipelineTestPage'
 import FileSharingTestPage from './screens/FileSharingTestPage'
 import { clearAuthSession, getAuthToken, getAuthUser, saveAuthSession } from './auth/authSession'
-
+import CryptoUnitTestPage from './crypto/CryptoUnitTestPage'
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 const App = () => {
@@ -47,6 +47,7 @@ const App = () => {
 
         const profile = await response.json();
         saveAuthSession({ token, user: profile });
+        await ensureUserHasKeys(profile.id);
         setAuthUser(profile);
       } catch (error) {
         if (error?.message === 'Session expired') {
@@ -99,6 +100,8 @@ const App = () => {
         <Route path="/watermark-test" element={authUser ? <WatermarkTestPage /> : <Navigate to="/auth" replace />} />
         <Route path="/pipeline-test" element={authUser ? <PipelineTestPage /> : <Navigate to="/auth" replace />} />
         <Route path="/file-sharing-test" element={authUser ? <FileSharingTestPage /> : <Navigate to="/auth" replace />} />
+
+        <Route path="/crypto-test" element={<CryptoUnitTestPage />} />
       </Routes>
     </>
   )

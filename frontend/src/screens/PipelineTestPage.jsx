@@ -17,7 +17,7 @@ import {
   walkChain,
   buildChainIndex,
 } from "../pipeline/chainReconstruct";
-import { concatBuffers } from "../crypto/canonicalize"; // re-exported helper
+import { concatBuffers } from "../crypto/buffers"; 
 import { verifyBlockHash, verifyChainLinkage, verifyReceivedBlock } from "../pipeline/hashVerify";
 import { verifyIncomingTransfer } from "../identity/verifyIncomingTransfer";
 import { resolveSenderName, formatRelativeTime } from "../identity/senderIdentity";

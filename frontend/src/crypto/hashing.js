@@ -1,4 +1,5 @@
-import { canonicalize, concatBuffers, bufferToHex } from "./canonicalize";
+import { canonicalize,  } from "./canonicalize";
+import {concatBuffers, bufferToHex} from "./buffers"
 
 export const computeFileHash = async (fileBuffer, metadataBlock) => {
   const metaBytes = new TextEncoder().encode(canonicalize(metadataBlock));
@@ -7,7 +8,7 @@ export const computeFileHash = async (fileBuffer, metadataBlock) => {
   return bufferToHex(digest);
 }
 
-// Additive — per the plan (Anisa 2.x): "a new, additive content-only hash
+// Additive — per the plan "a new, additive content-only hash
 // function (file bytes alone, nothing else mixed in) — separate from the
 // signing hash, not a replacement." computeFileHash above stays untouched
 // and is still what gets signed; this is only for identifying "is this the
