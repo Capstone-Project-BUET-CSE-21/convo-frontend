@@ -27,6 +27,7 @@ const useMeetingRoomSession = ({
   const navigate = useNavigate();
   const [peers, setPeers] = useState([]);
   const [peerNames, setPeerNames] = useState(new Map());
+  const [peerVideoStates, setPeerVideoStates] = useState(new Map());
   const [chatMessages, setChatMessages] = useState([]);
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -400,7 +401,7 @@ const useMeetingRoomSession = ({
     iceCandidatesQueueRef.current.set(peerId, []);
   };
 
-  const handleOffer = async (peerId, peerName, offer) => {
+  const handleOffer = async (peerId, peerName, offer, peerVideoEnabled) => {
     try {
       const pc = await createPeerConnection(peerId);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
@@ -409,12 +410,13 @@ const useMeetingRoomSession = ({
       await pc.setLocalDescription(answer);
 
       setPeerNames((prev) => new Map(prev).set(peerId, peerName));
+      setPeerVideoStates((prev) => new Map(prev).set(peerId, peerVideoEnabled !== false));
 
       wsRef.current.send(JSON.stringify({
         type: "answer",
         roomId,
         to: peerId,
-        payload: { answer, name: authUser.displayName },
+        payload: { answer, name: authUser.displayName, videoEnabled: isVideoEnabled },
       }));
     } catch (err) {
       console.error("Error handling offer:", err);
@@ -437,7 +439,7 @@ const useMeetingRoomSession = ({
         type: "offer",
         roomId,
         to: peerId,
-        payload: { offer, name: authUser.displayName },
+        payload: { offer, name: authUser.displayName, videoEnabled: isVideoEnabled },
       }));
     } catch (err) {
       console.error("Error sending offer to new peer", peerId, err);
@@ -563,6 +565,17 @@ const useMeetingRoomSession = ({
       track.enabled = next;
     });
     setIsVideoEnabled(next);
+
+    // track.enabled is sender-local only and never crosses the wire, so
+    // remote peers can't infer camera-off from the media track itself —
+    // tell them explicitly over the signaling channel.
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: "video-state",
+        roomId,
+        payload: { enabled: next },
+      }));
+    }
   };
 
   useEffect(() => {
@@ -624,7 +637,7 @@ const useMeetingRoomSession = ({
             await sendOffer(data.peerId);
             break;
           case "offer":
-            await handleOffer(data.from, data.payload.name, data.payload.offer);
+            await handleOffer(data.from, data.payload.name, data.payload.offer, data.payload.videoEnabled);
             break;
           case "answer": {
             const pc = pcRef.current.get(data.from);
@@ -633,8 +646,12 @@ const useMeetingRoomSession = ({
               await processQueuedCandidates(data.from);
             }
             setPeerNames((prev) => new Map(prev).set(data.from, data.payload.name));
+            setPeerVideoStates((prev) => new Map(prev).set(data.from, data.payload.videoEnabled !== false));
             break;
           }
+          case "video-state":
+            setPeerVideoStates((prev) => new Map(prev).set(data.from, data.payload.enabled));
+            break;
           case "ice": {
             const pc = pcRef.current.get(data.from);
             if (pc && pc.remoteDescription) {
@@ -696,6 +713,7 @@ const useMeetingRoomSession = ({
   return {
     peers,
     peerNames,
+    peerVideoStates,
     chatMessages,
     copied,
     copiedLink,

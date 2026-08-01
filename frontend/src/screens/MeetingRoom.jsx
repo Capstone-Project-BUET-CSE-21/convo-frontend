@@ -19,6 +19,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     const {
         peers,
         peerNames,
+        peerVideoStates,
         copied,
         copiedLink,
         isChatOpen,
@@ -107,6 +108,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
                 authUser={authUser}
                 peers={peers}
                 peerNames={peerNames}
+                peerVideoStates={peerVideoStates}
                 isAudioEnabled={isAudioEnabled}
                 isVideoEnabled={isVideoEnabled}
                 isPlaybackReady={isPlaybackReady}

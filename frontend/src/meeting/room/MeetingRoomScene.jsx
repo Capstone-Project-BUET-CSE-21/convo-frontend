@@ -5,6 +5,7 @@ const MeetingRoomScene = ({
   authUser,
   peers,
   peerNames,
+  peerVideoStates,
   isAudioEnabled,
   isVideoEnabled,
   isPlaybackReady,
@@ -58,6 +59,7 @@ const MeetingRoomScene = ({
             peerName={peerNames.get(peerId) || "Guest"}
             remoteVideosRef={remoteVideosRef}
             isPlaybackReady={isPlaybackReady}
+            isVideoEnabled={peerVideoStates.get(peerId) !== false}
           />
         ))}
 
@@ -77,6 +79,7 @@ MeetingRoomScene.propTypes = {
   }).isRequired,
   peers: PropTypes.arrayOf(PropTypes.string).isRequired,
   peerNames: PropTypes.instanceOf(Map).isRequired,
+  peerVideoStates: PropTypes.instanceOf(Map).isRequired,
   isAudioEnabled: PropTypes.bool.isRequired,
   isVideoEnabled: PropTypes.bool.isRequired,
   isPlaybackReady: PropTypes.bool.isRequired,

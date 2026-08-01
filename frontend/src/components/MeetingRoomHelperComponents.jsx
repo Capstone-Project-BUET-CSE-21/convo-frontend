@@ -28,13 +28,17 @@ export const ParticipantAvatar = ({ name, size = "large" }) => (
 // RemoteParticipantTile — a single remote peer tile (video or avatar)
 // ---------------------------------------------------------------------------
 
-export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef, isPlaybackReady }) => {
+export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef, isPlaybackReady, isVideoEnabled }) => {
   const videoRef = useRef(null);
-  // Tracks whether the peer's stream actually carries an enabled video
-  // track. Rendering also requires isPlaybackReady (fail-closed gate on
-  // watermarked playback — see useMeetingRoomSession), kept as a separate
-  // prop rather than folded in here so a later isPlaybackReady flip is
-  // picked up immediately without waiting on a track event to re-run this.
+  // Tracks whether the peer's stream currently carries a video track at
+  // all. NOTE: MediaStreamTrack.enabled is sender-local only and is never
+  // signaled over the wire — a remote track stays enabled=true even while
+  // the sending peer has their camera toggled off — so camera-off state is
+  // carried separately via isVideoEnabled (signaled over the WS channel,
+  // see useMeetingRoomSession's "video-state" messages). Rendering also
+  // requires isPlaybackReady (fail-closed gate on watermarked playback),
+  // kept as a separate prop so a later isPlaybackReady flip is picked up
+  // immediately without waiting on a track event to re-run this.
   const [hasTrackVideo, setHasTrackVideo] = useState(false);
 
   useEffect(() => {
@@ -45,7 +49,7 @@ export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef, isPla
 
     const checkVideo = () => {
       const videoTracks = stream.getVideoTracks();
-      setHasTrackVideo(videoTracks.length > 0 && videoTracks[0].enabled);
+      setHasTrackVideo(videoTracks.length > 0);
     };
 
     checkVideo();
@@ -88,7 +92,7 @@ export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef, isPla
     };
   }, [peerId, remoteVideosRef]);
 
-  const hasVideo = hasTrackVideo && isPlaybackReady;
+  const hasVideo = hasTrackVideo && isVideoEnabled && isPlaybackReady;
 
   return (
     <div className="participant-card">
@@ -121,4 +125,5 @@ RemoteParticipantTile.propTypes = {
     current: PropTypes.instanceOf(Map),
   }).isRequired,
   isPlaybackReady: PropTypes.bool.isRequired,
+  isVideoEnabled: PropTypes.bool.isRequired,
 };
