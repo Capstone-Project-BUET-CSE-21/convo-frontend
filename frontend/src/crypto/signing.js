@@ -1,4 +1,5 @@
-import { canonicalize, concatBuffers, hexToBuffer, bufferToBase64 } from "./canonicalize";
+import { canonicalize } from "./canonicalize";
+import { concatBuffers, hexToBuffer, bufferToBase64 } from "./buffers";
 
 export const signBlock = async (fileHash, metadataBlock, privateKey) => {
   const payload = concatBuffers(

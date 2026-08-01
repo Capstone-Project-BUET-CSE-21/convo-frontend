@@ -58,8 +58,9 @@ export const requestMetadataBlock = async (sessionCtx, file, previousHash) => {
   });
 
   if (!response.ok) {
-    throw new Error(`Metadata request failed: ${response.status}`);
-  }
+  const errorBody = await response.json().catch(() => ({}));
+  throw new Error(`Metadata request failed: ${response.status} — ${errorBody.error || "unknown reason"}`);
+}
 
   return response.json();
 };

@@ -1,4 +1,4 @@
-import { concatBuffers } from "../crypto/canonicalize";
+import { concatBuffers } from "../crypto/buffers";
 import { MAGIC, VERSION, HEADER_LENGTH } from "./wireFormat";
 
 // 4.1 Task 1: builds the 9-byte header exactly per section 0.6 —

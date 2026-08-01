@@ -1,4 +1,5 @@
-import { canonicalize, concatBuffers, hexToBuffer, base64ToBuffer } from "./canonicalize";
+import { canonicalize } from "./canonicalize";
+import { concatBuffers, hexToBuffer, base64ToBuffer } from "./buffers";
 
 export const fetchPublicKey = async (userId) => {
   const res = await fetch(`/api/keys/${userId}`);

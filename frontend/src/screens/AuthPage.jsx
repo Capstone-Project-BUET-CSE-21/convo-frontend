@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import { saveAuthSession } from "../auth/authSession";
 import "./AuthPage.css";
+import { ensureUserHasKeys } from "../crypto/keypair";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
@@ -154,6 +155,7 @@ const AuthPage = ({ onAuthSuccess }) => {
                 const payload = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(payload?.message || "Login failed. Please check your credentials.");
                 saveAuthSession(payload);
+                await ensureUserHasKeys(payload.user.id);
                 onAuthSuccess(payload.user);
                 setFeedback("Login successful. Redirecting…");
                 navigate("/home", { replace: true });
@@ -196,6 +198,7 @@ const AuthPage = ({ onAuthSuccess }) => {
                 const payload = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(payload?.message || "Signup failed. Please try different credentials.");
                 saveAuthSession(payload);
+                await ensureUserHasKeys(payload.user.id);
                 onAuthSuccess(payload.user);
                 setFeedback("Account created. Redirecting…");
                 navigate("/home", { replace: true });
