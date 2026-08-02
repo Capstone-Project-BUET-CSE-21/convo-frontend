@@ -330,7 +330,6 @@ const useMeetingRoomSession = ({
   };
 
   const removePeer = (peerId) => {
-    console.log(`[LEAVE-DEBUG] removePeer(${peerId}) executing at ${Date.now()}`);
     const channel = dataChannelsRef.current.get(peerId);
     if (channel) channel.close();
 
@@ -394,7 +393,6 @@ const useMeetingRoomSession = ({
     };
 
     pc.onconnectionstatechange = () => {
-      console.log(`[LEAVE-DEBUG] pc.connectionState for ${peerId} -> ${pc.connectionState} at ${Date.now()}`);
       if (pc.connectionState === "failed" || pc.connectionState === "closed") {
         removePeer(peerId);
       }
@@ -551,18 +549,7 @@ const useMeetingRoomSession = ({
   };
 
   const leaveRoom = () => {
-    console.log(`[LEAVE-DEBUG] leaveRoom() invoked at ${Date.now()}`);
-
-    // Send an explicit "leave" message FIRST, while the socket is still
-    // open — this is what actually tells other participants we've left.
-    // Waiting on afterConnectionClosed (TCP teardown detection) instead
-    // depends on the hosting platform's proxy propagating the close, which
-    // can lag by several seconds. stopRecording() below does a synchronous,
-    // potentially multi-second WAV encode of the whole recording buffer;
-    // running it before this would block the leave signal behind it,
-    // leaving our tile frozen on everyone else's screen until it finishes.
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      console.log(`[LEAVE-DEBUG] sending leave message at ${Date.now()}`);
       wsRef.current.send(JSON.stringify({ type: "leave", roomId }));
     }
 
@@ -575,10 +562,7 @@ const useMeetingRoomSession = ({
     setPeers([]);
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      console.log(`[LEAVE-DEBUG] calling ws.close() at ${Date.now()}`);
       wsRef.current.close();
-    } else {
-      console.log(`[LEAVE-DEBUG] ws not OPEN at leave time, readyState=${wsRef.current?.readyState}`);
     }
 
     stopRecording();
@@ -724,7 +708,6 @@ const useMeetingRoomSession = ({
             ]);
             break;
           case "peer-left":
-            console.log(`[LEAVE-DEBUG] peer-left received for ${data.peerId} at ${Date.now()}`);
             removePeer(data.peerId);
             break;
         }
