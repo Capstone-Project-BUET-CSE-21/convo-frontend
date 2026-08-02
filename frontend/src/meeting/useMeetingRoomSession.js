@@ -27,6 +27,7 @@ const useMeetingRoomSession = ({
   const navigate = useNavigate();
   const [peers, setPeers] = useState([]);
   const [peerNames, setPeerNames] = useState(new Map());
+  const [peerUserIds, setPeerUserIds] = useState(new Map());
   const [peerVideoStates, setPeerVideoStates] = useState(new Map());
   const [chatMessages, setChatMessages] = useState([]);
   const [copied, setCopied] = useState(false);
@@ -144,7 +145,7 @@ const useMeetingRoomSession = ({
       if (msg.kind === "wrapped-file-end") {
         const transfer = incomingTransfersRef.current.get(peerId);
         if (!transfer || transfer.meta.transferId !== msg.transferId) return;
-
+        console.log("File metadata received:", transfer.meta.fileName, transfer.meta);
         if (transfer.chunkCount == null || transfer.chunks.size !== transfer.chunkCount) {
           setChatMessages((prev) => [
             ...prev,
@@ -195,11 +196,14 @@ const useMeetingRoomSession = ({
 
         // with:
         let decryptedBuffer;
+        console.log("Decrypting as authUser.id:", authUser.id);
         try {
           decryptedBuffer = await decryptPayload(wrappedBuffer, { recipientId: authUser.id });
         } catch (err) {
+          console.error("Decrypt error:", err.name, err.message, err);
           setChatMessages((prev) => [
             ...prev,
+
             {
               id: Date.now() + Math.random(),
               type: "chat",
@@ -401,7 +405,7 @@ const useMeetingRoomSession = ({
     iceCandidatesQueueRef.current.set(peerId, []);
   };
 
-  const handleOffer = async (peerId, peerName, offer, peerVideoEnabled) => {
+  const handleOffer = async (peerId, peerName, offer, peerVideoEnabled, peerUserId) => {
     try {
       const pc = await createPeerConnection(peerId);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
@@ -410,13 +414,14 @@ const useMeetingRoomSession = ({
       await pc.setLocalDescription(answer);
 
       setPeerNames((prev) => new Map(prev).set(peerId, peerName));
+      setPeerUserIds((prev) => new Map(prev).set(peerId, peerUserId));
       setPeerVideoStates((prev) => new Map(prev).set(peerId, peerVideoEnabled !== false));
 
       wsRef.current.send(JSON.stringify({
         type: "answer",
         roomId,
         to: peerId,
-        payload: { answer, name: authUser.displayName, videoEnabled: isVideoEnabled },
+        payload: { answer, name: authUser.displayName, videoEnabled: isVideoEnabled, userId: authUser.id },
       }));
     } catch (err) {
       console.error("Error handling offer:", err);
@@ -439,7 +444,7 @@ const useMeetingRoomSession = ({
         type: "offer",
         roomId,
         to: peerId,
-        payload: { offer, name: authUser.displayName, videoEnabled: isVideoEnabled },
+        payload: { offer, name: authUser.displayName, videoEnabled: isVideoEnabled, userId: authUser.id },
       }));
     } catch (err) {
       console.error("Error sending offer to new peer", peerId, err);
@@ -637,7 +642,7 @@ const useMeetingRoomSession = ({
             await sendOffer(data.peerId);
             break;
           case "offer":
-            await handleOffer(data.from, data.payload.name, data.payload.offer, data.payload.videoEnabled);
+            await handleOffer(data.from, data.payload.name, data.payload.offer, data.payload.videoEnabled,  data.payload.userId);
             break;
           case "answer": {
             const pc = pcRef.current.get(data.from);
@@ -646,6 +651,7 @@ const useMeetingRoomSession = ({
               await processQueuedCandidates(data.from);
             }
             setPeerNames((prev) => new Map(prev).set(data.from, data.payload.name));
+            setPeerUserIds((prev) => new Map(prev).set(data.from, data.payload.userId));
             setPeerVideoStates((prev) => new Map(prev).set(data.from, data.payload.videoEnabled !== false));
             break;
           }
@@ -713,6 +719,7 @@ const useMeetingRoomSession = ({
   return {
     peers,
     peerNames,
+    peerUserIds,
     peerVideoStates,
     chatMessages,
     copied,

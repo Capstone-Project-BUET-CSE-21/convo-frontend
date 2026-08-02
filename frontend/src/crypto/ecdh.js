@@ -1,7 +1,7 @@
 import { base64ToBuffer } from "./buffers";
 
 export const fetchECDHPublicKey = async (userId) => {
-  const res = await fetch(`/api/keys/${userId}/ECDH-P256`);
+  const res = await fetch(`/api/keys/${userId}/ECDH-P256`, { cache: "no-store" }); // ADD cache option
   if (!res.ok) return null;
   const { publicKey } = await res.json();
   return publicKey;
