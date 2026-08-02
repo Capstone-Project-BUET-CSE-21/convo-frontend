@@ -82,12 +82,12 @@ export const attachHashAndSignature = async (transferId, { fileHash, signature, 
 export const requestEncryptionKeyBundle = async (sessionCtx) => {
   if (!CONFIDENTIALITY_API_BASE_URL) {
     throw new Error("Confidentiality service URL is not configured");
-  }
+  } 
 
   const recipientIds = Array.isArray(sessionCtx.recipientIds) ? sessionCtx.recipientIds : [];
   const lookups = await Promise.all(
     recipientIds.map(async (recipientId) => {
-      const response = await fetch(`${CONFIDENTIALITY_API_BASE_URL}/api/keys/${recipientId}`);
+      const response = await fetch(`${CONFIDENTIALITY_API_BASE_URL}/api/keys/${recipientId}/ECDH-P256`);
       if (!response.ok) {
         throw new Error(`Public key lookup failed for ${recipientId}: ${response.status}`);
       }

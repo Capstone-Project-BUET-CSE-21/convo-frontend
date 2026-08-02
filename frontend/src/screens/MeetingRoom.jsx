@@ -19,6 +19,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
     const {
         peers,
         peerNames,
+        peerUserIds,
         peerVideoStates,
         copied,
         copiedLink,
@@ -139,6 +140,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
                 roomId={roomId}
                 peers={peers}
                 peerNames={peerNames}
+                peerUserIds={peerUserIds}
                 currentUser={{ id: authUser.id, displayName: authUser.displayName }}
                 chatMessages={chatMessages}
                 onSend={handleSendChat}

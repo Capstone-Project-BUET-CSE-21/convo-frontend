@@ -15,6 +15,7 @@ const formatBytes = (bytes) => {
 //   { valid, reason, senderName, sessionName, timestamp }
 // container per manual §5.2 Task 2.
 const ChatFileBubble = ({ fileUrl, fileName, fileType, fileSize, provenance }) => {
+  console.log("ChatFileBubble props:", { fileName, fileType, fileSize });
   const badge = provenance && (
     <ProvenanceBadge
       verified={provenance.valid}

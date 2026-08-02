@@ -95,6 +95,7 @@ const ChatFileShare = forwardRef(function ChatFileShare(
     activeThread,
     peers,
     peerNames,
+    peerUserIds,
     dataChannelsRef,
     onFileSent,
     stagedFile,
@@ -135,7 +136,7 @@ const ChatFileShare = forwardRef(function ChatFileShare(
     const targets = targetPeerIds
       .map((peerId) => ({ peerId, channel: dataChannelsRef.current?.get(peerId) }))
       .filter(({ channel }) => channel);
-    console.log("roomId being sent as sessionId:", roomId);
+    
     if (targets.length === 0) {
       onStageError("No connected peers to send this file to right now.");
       return;
@@ -160,7 +161,9 @@ const ChatFileShare = forwardRef(function ChatFileShare(
     const sessionCtx = {
       sessionId: roomId,
       senderId: currentUser.id,
-      recipientIds: activeThread === EVERYONE ? peers : [activeThread],
+      recipientIds: (activeThread === EVERYONE ? peers : [activeThread])
+        .map((peerId) => peerUserIds.get(peerId))
+        .filter(Boolean),
       onStageChange: (stage) => {
         const progressByStage = {
           metadata: 5,
@@ -178,9 +181,11 @@ const ChatFileShare = forwardRef(function ChatFileShare(
           progress: stage.progress ?? progressByStage[stage.phase] ?? 0,
         });
       },
+
       encryptPayload: async (wrappedBuffer, { encryptionKeys }) =>
         buildEncryptedEnvelope(wrappedBuffer, { senderId: currentUser.id, encryptionKeys }),
     };
+
 
     // Track how far along each target peer's transfer is so the tray can
     // show one combined percentage even when sending to several peers at once.
@@ -293,6 +298,7 @@ ChatFileShare.propTypes = {
   activeThread: PropTypes.string.isRequired,
   peers: PropTypes.arrayOf(PropTypes.string).isRequired,
   peerNames: PropTypes.instanceOf(Map).isRequired,
+  peerUserIds: PropTypes.instanceOf(Map).isRequired,
   dataChannelsRef: PropTypes.shape({ current: PropTypes.object }).isRequired,
   onFileSent: PropTypes.func.isRequired,
   stagedFile: PropTypes.instanceOf(File),
