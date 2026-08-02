@@ -552,11 +552,13 @@ const useMeetingRoomSession = ({
 
   const leaveRoom = () => {
     console.log(`[LEAVE-DEBUG] leaveRoom() invoked at ${Date.now()}`);
-    stopRecording();
-    closePlaybackOutput();
-    localMixBusRef.current?.close();
-    localMixBusRef.current = null;
 
+    // Tear down peer connections and the signaling socket FIRST — this is
+    // what tells other participants we've left. stopRecording() below does
+    // a synchronous, potentially multi-second WAV encode of the whole
+    // recording buffer; running it before the ws close would block the
+    // leave signal behind it, leaving our tile frozen on everyone else's
+    // screen until the encode finishes.
     pcRef.current.forEach((pc) => pc.close());
     pcRef.current.clear();
     iceCandidatesQueueRef.current.clear();
@@ -571,6 +573,11 @@ const useMeetingRoomSession = ({
     } else {
       console.log(`[LEAVE-DEBUG] ws not OPEN at leave time, readyState=${wsRef.current?.readyState}`);
     }
+
+    stopRecording();
+    closePlaybackOutput();
+    localMixBusRef.current?.close();
+    localMixBusRef.current = null;
 
     setIsAudioEnabled(true);
     setIsVideoEnabled(true);
