@@ -11,7 +11,7 @@ export const parseHeader = (buffer) => {
   const view = new DataView(buffer);
 
   const magic = view.getUint32(0, false);
-  if (magic !== MAGIC) 
+  if (magic !== MAGIC) {
     throw new Error("Malformed provenance wrapper: bad magic bytes");
   }
 
@@ -78,16 +78,9 @@ export const reconstructChain = (signedBlock, chainStore) => {
 // v2 API — backend-backed. Used by the trace/lineage screen AND
 // (as of this change) by receive-side verification.
 // ---------------------------------------------------------------
-// export const fetchChainHistory = async (contentHash, baseUrl) => {
-//   // GET /api/transfer/metadata/history/{contentHash} — TransferMetadataController
-//   const res = await fetch(`${baseUrl}/api/transfer/metadata/history/${contentHash}`);
-//   if (!res.ok) {
-//     throw new Error(`Chain history lookup failed: ${res.status} ${res.statusText}`);
-//   }
-//   return res.json();
-// }
-
 export const fetchChainHistory = async (contentHash, baseUrl) => {
+  // GET /api/transfer/metadata/history/{contentHash} — TransferMetadataController
+  // const res = await fetch(`${baseUrl}/api/transfer/metadata/history/${contentHash}`);
   const normalizedBaseUrl = baseUrl.replace(/\/+$/, ""); // strip any trailing slash(es)
   const res = await fetch(`${normalizedBaseUrl}/api/transfer/metadata/history/${contentHash}`);
   if (!res.ok) {
