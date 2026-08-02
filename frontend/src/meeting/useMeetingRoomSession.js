@@ -553,12 +553,19 @@ const useMeetingRoomSession = ({
   const leaveRoom = () => {
     console.log(`[LEAVE-DEBUG] leaveRoom() invoked at ${Date.now()}`);
 
-    // Tear down peer connections and the signaling socket FIRST — this is
-    // what tells other participants we've left. stopRecording() below does
-    // a synchronous, potentially multi-second WAV encode of the whole
-    // recording buffer; running it before the ws close would block the
-    // leave signal behind it, leaving our tile frozen on everyone else's
-    // screen until the encode finishes.
+    // Send an explicit "leave" message FIRST, while the socket is still
+    // open — this is what actually tells other participants we've left.
+    // Waiting on afterConnectionClosed (TCP teardown detection) instead
+    // depends on the hosting platform's proxy propagating the close, which
+    // can lag by several seconds. stopRecording() below does a synchronous,
+    // potentially multi-second WAV encode of the whole recording buffer;
+    // running it before this would block the leave signal behind it,
+    // leaving our tile frozen on everyone else's screen until it finishes.
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      console.log(`[LEAVE-DEBUG] sending leave message at ${Date.now()}`);
+      wsRef.current.send(JSON.stringify({ type: "leave", roomId }));
+    }
+
     pcRef.current.forEach((pc) => pc.close());
     pcRef.current.clear();
     iceCandidatesQueueRef.current.clear();
