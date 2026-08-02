@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { createLocalMixBus, createWatermarkedPlaybackStream } from "../audio/audioWatermarkSetup";
 import { getAuthToken } from "../auth/authSession";
 import { decodeChunkFrame, reassembleChunkFrames } from "../pipeline/transferFrames";
-import { unwrapPayload, createChainStore } from "../pipeline/chainReconstruct";
+// import { unwrapPayload, createChainStore } from "../pipeline/chainReconstruct";
+import { unwrapPayload } from "../pipeline/chainReconstruct";
 import { verifyIncomingTransfer } from "../identity/verifyIncomingTransfer";
 import useMeetingRecording from "./useMeetingRecording";
 import { decryptPayload } from "../pipeline/encryptionEnvelope";
@@ -11,6 +12,8 @@ import { decryptPayload } from "../pipeline/encryptionEnvelope";
 const WS_URL = import.meta.env.VITE_WS_BASE_URL;
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
 const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL;
+// by taba
+const CONFIDENTIALITY_API_BASE_URL = import.meta.env.VITE_CONFIDENTIALITY_CHAIN_API_URL;
 const BUFFERED_AMOUNT_LOW_THRESHOLD = 1024 * 1024;
 
 const useMeetingRoomSession = ({
@@ -47,7 +50,8 @@ const useMeetingRoomSession = ({
   const iceCandidatesQueueRef = useRef(new Map());
   const dataChannelsRef = useRef(new Map());
   const incomingTransfersRef = useRef(new Map());
-  const chainStoreRef = useRef(createChainStore());
+  // by Taba
+  // const chainStoreRef = useRef(createChainStore());
   const rawStreamRef = useRef(null);
 
   const playbackAudioRef = useRef(null);
@@ -249,17 +253,28 @@ const useMeetingRoomSession = ({
 
         let provenance;
         try {
-          provenance = await verifyIncomingTransfer({
+          // provenance = await verifyIncomingTransfer({
+          //   signedBlock,
+          //   fileBytes,
+          //   chainStore: chainStoreRef.current,
+          //   peerNames,
+          //   fallbackName: peerNames.get(peerId) || transfer.meta.fromName,
+          //   sessionName: roomId,
+          // });
+          // added by taba
+            provenance = await verifyIncomingTransfer({
             signedBlock,
             fileBytes,
-            chainStore: chainStoreRef.current,
+            baseUrl: CONFIDENTIALITY_API_BASE_URL,   // NOT BACKEND_URL — this is the
+                                                      // service that owns /api/transfer/metadata,
+                                                      // same one provenancePipeline.js posts to
             peerNames,
             fallbackName: peerNames.get(peerId) || transfer.meta.fromName,
             sessionName: roomId,
           });
         } catch (err) {
           console.error("Provenance verification failed unexpectedly:", err);
-          provenance = { valid: false, reason: "hash-mismatch", senderName: null, timestamp: null };
+          provenance = { valid: false, reason: "verification error", senderName: null, timestamp: null };
         }
 
         setChatMessages((prev) => [

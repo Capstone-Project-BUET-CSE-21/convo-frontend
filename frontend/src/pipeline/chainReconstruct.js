@@ -48,15 +48,17 @@ export const unwrapPayload = (buffer) => {
   return parseHeader(buffer);
 }
 
+// pipeline/chainReconstruct.js
 // ---------------------------------------------------------------
-// v1 API — kept as-is, NOT replaced. This is what Debashri's
-// hashVerify.js / verifyIncomingTransfer.js already call on receipt,
-// for an immediate single-hop check within the current live session
-// (no network round trip needed, since the server already validated
-// previousHash at POST time — this is just the client's own quick
-// "does this line up with what I've already seen" check).
-// The new multi-hop walk below is a separate, additive feature for
-// cross-session trace-back and does not replace this.
+// v1 API — NOTE: not used for receive-side verification anymore.
+// It only reflects blocks seen in-session, which produces false
+// "chain broken" results the first time a file crosses sessions,
+// and a false PASS on the very next attempt once that block gets
+// cached locally (see identity/verifyIncomingTransfer.js — this
+// was the actual root cause of the Meeting A -> Meeting B bug).
+// Kept only as optional local scaffolding (e.g. optimistic UI),
+// never as the verification source of truth. Use
+// resolvePriorBlockDurable for verification.
 // ---------------------------------------------------------------
 export const createChainStore = () => {
   return new Map();
@@ -73,12 +75,11 @@ export const reconstructChain = (signedBlock, chainStore) => {
 }
 
 // ---------------------------------------------------------------
-// v2 API — new multi-hop, backend-backed trace-back. Used by the
-// trace/lineage screen, not by the real-time receipt path above.
+// v2 API — backend-backed. Used by the trace/lineage screen AND
+// (as of this change) by receive-side verification.
 // ---------------------------------------------------------------
 export const fetchChainHistory = async (contentHash, baseUrl) => {
-  // Confirmed route from Fariha's TransferMetadataController:
-  // GET /api/transfer/metadata/history/{contentHash}
+  // GET /api/transfer/metadata/history/{contentHash} — TransferMetadataController
   const res = await fetch(`${baseUrl}/api/transfer/metadata/history/${contentHash}`);
   if (!res.ok) {
     throw new Error(`Chain history lookup failed: ${res.status} ${res.statusText}`);
@@ -92,8 +93,7 @@ export const buildChainIndex = (entries) => {
     if (!entry.fileHash) {
       throw new Error(
         "Chain history entry is missing fileHash — ChainHistoryResponseDto must include " +
-        "each row's own fileHash for the walk to link entries by previousHash. " +
-        "This needs to be added on Fariha's side before the walk can run."
+        "each row's own fileHash for the walk to link entries by previousHash."
       );
     }
     byFileHash.set(entry.fileHash, entry);
@@ -104,6 +104,28 @@ export const buildChainIndex = (entries) => {
 export const loadChainIndex = async (contentHash, baseUrl) => {
   const entries = await fetchChainHistory(contentHash, baseUrl);
   return buildChainIndex(entries);
+}
+
+// ---------------------------------------------------------------
+// Receive-side durable linkage resolution. Resolves previousHash
+// against the backend's authoritative chain history for this
+// file's content, not against anything seen locally in-browser.
+// This is what verifyIncomingTransfer.js calls in place of
+// reconstructChain().
+// ---------------------------------------------------------------
+export const resolvePriorBlockDurable = async (contentHash, previousHash, baseUrl) => {
+  if (!previousHash) {
+    // No previousHash declared — this block claims to be a root link.
+    // Nothing to resolve against; verifyChainLinkage treats null
+    // previousHash as valid on its own.
+    return { priorBlock: null, chainBroken: false };
+  }
+
+  const chainIndex = await loadChainIndex(contentHash, baseUrl);
+  const priorBlock = chainIndex.get(previousHash) ?? null;
+  const chainBroken = priorBlock === null;
+
+  return { priorBlock, chainBroken };
 }
 
 export const walkChain = async (startEntry, chainIndex, { verifyHop, isAuthorizedHop }) => {

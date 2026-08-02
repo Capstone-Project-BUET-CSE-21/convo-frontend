@@ -1,8 +1,8 @@
 import { canonicalize } from "./canonicalize";
 import { concatBuffers, hexToBuffer, base64ToBuffer } from "./buffers";
 
-export const fetchPublicKey = async (userId) => {
-  const res = await fetch(`/api/keys/${userId}`);
+export const fetchPublicKey = async (userId, algorithm = "ECDSA-P256") => {
+  const res = await fetch(`/api/keys/${userId}/${algorithm}`);
   if (!res.ok) return null;
   const { publicKey } = await res.json();
   return publicKey;
