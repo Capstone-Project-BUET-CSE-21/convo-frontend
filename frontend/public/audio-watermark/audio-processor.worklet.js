@@ -133,6 +133,20 @@ class AudioProcessor extends AudioWorkletProcessor {
     );
     this._frameIndex = 0;
 
+    // Lets a recorder pin the start of its capture to a KNOWN cycle
+    // position (0) instead of an arbitrary one, so the detector can try a
+    // small, cheap search near cyclePos=0 first instead of the full
+    // exhaustive scan — see useMeetingRecording.js's 'reset-prng' send and
+    // WatermarkDetectionService's fast-path search. Message delivery to a
+    // worklet isn't sample-accurate relative to process() calls, so the
+    // actual reset may land a few frames early/late — the detector's
+    // fast-path window is sized to tolerate that, not to require exactness.
+    this.port.onmessage = (e) => {
+      if (e.data && e.data.type === "reset-prng") {
+        this._frameIndex = 0;
+      }
+    };
+
     this._numBands = config.numBands || 24;
     this._binToBand = this._buildBinToBandMap(
       this._analysisSize,
