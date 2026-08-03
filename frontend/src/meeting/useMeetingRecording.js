@@ -61,14 +61,6 @@ const useMeetingRecording = ({
       audioCtx = new AudioContext();
       sourceNode = audioCtx.createMediaStreamSource(sourceStream);
       recordingSourceModeRef.current = "playback";
-
-      // Pins the recording's start to a KNOWN watermark cycle position (0)
-      // instead of an arbitrary one, so the detector's cheap near-cyclePos=0
-      // fast path finds it almost instantly. Not required for correctness —
-      // the detector also has a full exhaustive fallback search for
-      // recordings that never got this reset (e.g. external recorders) —
-      // this is purely a speed optimization for in-app recordings.
-      playbackWorkletNodeRef?.current?.port.postMessage({ type: 'reset-prng' });
     } else if (localVideoRef.current?.srcObject?.getAudioTracks().length) {
       // Fallback for edge cases where the watermark mix isn't ready yet:
       // record raw local mic only rather than failing outright. This
@@ -100,6 +92,27 @@ const useMeetingRecording = ({
 
       // Keep capture silent to avoid feeding back into the live mix/speakers.
       silentDestination = audioCtx.createMediaStreamDestination();
+
+      // Pins the recording's start to a KNOWN watermark cycle position (0)
+      // instead of an arbitrary one, so the detector's cheap near-cyclePos=0
+      // fast path finds it almost instantly. Not required for correctness —
+      // the detector also has a full exhaustive fallback search for
+      // recordings that never got this reset (e.g. external recorders) —
+      // this is purely a speed optimization for in-app recordings.
+      //
+      // MUST happen right here, immediately before connect() actually
+      // starts audio flowing into the recorder — NOT earlier (e.g. before
+      // the addModule() await above). The embedder's cycle position
+      // advances continuously in real time regardless of whether anyone is
+      // recording, so any delay between "reset sent" and "recording
+      // actually starts" — and addModule() is a real network fetch +
+      // module registration, easily hundreds of ms on a cold load — erodes
+      // the fast path's tolerance window directly. Resetting late (here)
+      // instead of early keeps that gap to whatever's left of this
+      // synchronous block, not an entire async worklet-loading round trip.
+      if (recordingSourceModeRef.current === "playback") {
+        playbackWorkletNodeRef?.current?.port.postMessage({ type: 'reset-prng' });
+      }
 
       sourceNode.connect(recorderNode);
       recorderNode.connect(silentDestination);
