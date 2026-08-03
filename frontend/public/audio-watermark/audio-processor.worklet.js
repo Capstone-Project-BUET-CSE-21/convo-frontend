@@ -143,9 +143,14 @@ class AudioProcessor extends AudioWorkletProcessor {
     // fast-path window is sized to tolerate that, not to require exactness.
     this.port.onmessage = (e) => {
       if (e.data && e.data.type === "reset-prng") {
-        // TEMP DIAGNOSTIC — remove once the fast-path timing gap is measured.
-        console.log('[watermark-diag] reset-prng received, t=', performance.now());
         this._frameIndex = 0;
+        // TEMP DIAGNOSTIC — remove once the fast-path timing gap is measured.
+        // Actual reset above runs FIRST, so even if this diagnostic logging
+        // itself throws, the real reset still took effect — AudioWorkletGlobalScope
+        // has no `performance` global (that threw a ReferenceError last
+        // time), so use `currentTime` (this context's own audio clock, in
+        // seconds) instead.
+        console.log('[watermark-diag] reset-prng received, currentTime=', currentTime);
       }
     };
 
