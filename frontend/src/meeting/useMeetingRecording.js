@@ -111,6 +111,8 @@ const useMeetingRecording = ({
       // instead of early keeps that gap to whatever's left of this
       // synchronous block, not an entire async worklet-loading round trip.
       if (recordingSourceModeRef.current === "playback") {
+        // TEMP DIAGNOSTIC — remove once the fast-path timing gap is measured.
+        console.log('[watermark-diag] reset-prng send, refPresent=', !!playbackWorkletNodeRef?.current, 't=', performance.now());
         playbackWorkletNodeRef?.current?.port.postMessage({ type: 'reset-prng' });
       }
 

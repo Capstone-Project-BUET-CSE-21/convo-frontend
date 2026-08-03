@@ -143,6 +143,8 @@ class AudioProcessor extends AudioWorkletProcessor {
     // fast-path window is sized to tolerate that, not to require exactness.
     this.port.onmessage = (e) => {
       if (e.data && e.data.type === "reset-prng") {
+        // TEMP DIAGNOSTIC — remove once the fast-path timing gap is measured.
+        console.log('[watermark-diag] reset-prng received, t=', performance.now());
         this._frameIndex = 0;
       }
     };
