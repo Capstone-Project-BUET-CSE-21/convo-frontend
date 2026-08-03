@@ -86,7 +86,13 @@ const useMeetingRecording = ({
     try {
       await audioCtx.audioWorklet.addModule('/audio-watermark/recorder-processor.worklet.js');
       const recorderNode = new AudioWorkletNode(audioCtx, 'recorder-processor');
+      // TEMP DIAGNOSTIC — remove once the fast-path timing gap is measured.
+      let loggedFirstChunk = false;
       recorderNode.port.onmessage = (e) => {
+        if (!loggedFirstChunk) {
+          loggedFirstChunk = true;
+          console.log('[watermark-diag] recorder first real chunk received (main thread), t=', performance.now());
+        }
         recordingSamplesRef.current.push(new Float32Array(e.data));
       };
 
@@ -112,6 +118,19 @@ const useMeetingRecording = ({
       // synchronous block, not an entire async worklet-loading round trip.
       if (recordingSourceModeRef.current === "playback") {
         // TEMP DIAGNOSTIC — remove once the fast-path timing gap is measured.
+        // Listener attached BEFORE sending, and BOTH timestamps below are
+        // performance.now() on the main thread — directly comparable, unlike
+        // the worklets' own AudioContext-relative `currentTime`s (which
+        // aren't comparable to each other or to this clock).
+        const embedderPort = playbackWorkletNodeRef?.current?.port;
+        if (embedderPort) {
+          embedderPort.addEventListener('message', (e) => {
+            if (e.data && e.data.type === 'reset-prng-ack') {
+              console.log('[watermark-diag] reset-prng ack received (main thread), t=', performance.now());
+            }
+          }, { once: true });
+          embedderPort.start();
+        }
         console.log('[watermark-diag] reset-prng send, refPresent=', !!playbackWorkletNodeRef?.current, 't=', performance.now());
         playbackWorkletNodeRef?.current?.port.postMessage({ type: 'reset-prng' });
       }

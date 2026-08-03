@@ -145,12 +145,14 @@ class AudioProcessor extends AudioWorkletProcessor {
       if (e.data && e.data.type === "reset-prng") {
         this._frameIndex = 0;
         // TEMP DIAGNOSTIC — remove once the fast-path timing gap is measured.
-        // Actual reset above runs FIRST, so even if this diagnostic logging
-        // itself throws, the real reset still took effect — AudioWorkletGlobalScope
-        // has no `performance` global (that threw a ReferenceError last
-        // time), so use `currentTime` (this context's own audio clock, in
-        // seconds) instead.
-        console.log('[watermark-diag] reset-prng received, currentTime=', currentTime);
+        // Actual reset above runs FIRST. No console.log/timestamp here:
+        // AudioWorkletGlobalScope's `currentTime` is relative to THIS
+        // context's own start, not comparable to the recorder's separate
+        // AudioContext or to the main thread's performance.now() — instead,
+        // just echo back to the main thread, which stamps its OWN
+        // performance.now() on receipt (see useMeetingRecording.js) so all
+        // timestamps end up on one comparable clock.
+        this.port.postMessage({ type: "reset-prng-ack" });
       }
     };
 
