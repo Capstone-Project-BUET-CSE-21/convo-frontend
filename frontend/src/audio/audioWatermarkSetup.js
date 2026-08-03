@@ -52,8 +52,6 @@ export const createLocalMixBus = () => {
     sourceNodes.delete(key);
   };
 
-  const hasSource = (key) => sourceNodes.has(key);
-
   const close = () => {
     Array.from(sourceNodes.keys()).forEach(removeSource);
     try {
@@ -73,7 +71,6 @@ export const createLocalMixBus = () => {
     mixedStream: destination.stream,
     addSource,
     removeSource,
-    hasSource,
     close,
   };
 };

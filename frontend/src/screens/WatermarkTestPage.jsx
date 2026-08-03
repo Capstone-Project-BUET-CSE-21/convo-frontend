@@ -90,7 +90,7 @@ const WatermarkTestPage = () => {
         <div className="wt-card-header">
           <h1 className="wt-title">Watermark Detection</h1>
           <p className="wt-subtitle">
-            Upload a recorded WAV and enter the session ID to identify which participant has recorded the audio.
+            Upload a recorded audio file (WAV, MP3, AAC, M4A, or Opus) and enter the session ID to identify which participant has recorded the audio.
           </p>
         </div>
 
@@ -123,7 +123,7 @@ const WatermarkTestPage = () => {
                 <polyline points="17 8 12 3 7 8" />
                 <line x1="12" y1="3" x2="12" y2="15" />
               </svg>
-              {file ? file.name : "Choose WAV file"}
+              {file ? file.name : "Choose audio file"}
             </button>
           </div>
         </div>

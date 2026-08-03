@@ -62,13 +62,12 @@ const useMeetingRecording = ({
       sourceNode = audioCtx.createMediaStreamSource(sourceStream);
       recordingSourceModeRef.current = "playback";
 
-      // CRITICAL: the detector assumes the recording starts from a known,
-      // frame-0-aligned point in the watermark's PN sequence. The playback
-      // worklet has been running continuously since the call started, so
-      // without this reset, the recorded segment begins at an arbitrary,
-      // unrecoverable offset into that sequence — which is indistinguishable
-      // from noise to the detector (this is what "no watermark detected" /
-      // negative scores for every user means in practice).
+      // Pins the recording's start to a KNOWN watermark cycle position (0)
+      // instead of an arbitrary one, so the detector's cheap near-cyclePos=0
+      // fast path finds it almost instantly. Not required for correctness —
+      // the detector also has a full exhaustive fallback search for
+      // recordings that never got this reset (e.g. external recorders) —
+      // this is purely a speed optimization for in-app recordings.
       playbackWorkletNodeRef?.current?.port.postMessage({ type: 'reset-prng' });
     } else if (localVideoRef.current?.srcObject?.getAudioTracks().length) {
       // Fallback for edge cases where the watermark mix isn't ready yet:
@@ -142,7 +141,6 @@ const useMeetingRecording = ({
 
     recordingAudioCtxRef.current.close();
     recordingAudioCtxRef.current = null;
-    recordingScriptNodeRef.current = null;
     recordingSourceModeRef.current = "none";
     recordingSamplesRef.current = [];
 
