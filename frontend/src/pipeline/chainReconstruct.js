@@ -1,4 +1,5 @@
 import { MAGIC, VERSION, HEADER_LENGTH } from "./wireFormat";
+import { authHeaders } from "../auth/authFetch";
 
 // 4.2 Task 1: exact inverse of buildHeader. Throws on malformed input
 // rather than guessing, so Unmona's Task 4 (surface a clear error state)
@@ -82,7 +83,9 @@ export const fetchChainHistory = async (contentHash, baseUrl) => {
   // GET /api/transfer/metadata/history/{contentHash} — TransferMetadataController
   // const res = await fetch(`${baseUrl}/api/transfer/metadata/history/${contentHash}`);
   const normalizedBaseUrl = baseUrl.replace(/\/+$/, ""); // strip any trailing slash(es)
-  const res = await fetch(`${normalizedBaseUrl}/api/transfer/metadata/history/${contentHash}`);
+  const res = await fetch(`${normalizedBaseUrl}/api/transfer/metadata/history/${contentHash}`, {
+    headers: authHeaders(),
+  });
   if (!res.ok) {
     throw new Error(`Chain history lookup failed: ${res.status} ${res.statusText}`);
   }

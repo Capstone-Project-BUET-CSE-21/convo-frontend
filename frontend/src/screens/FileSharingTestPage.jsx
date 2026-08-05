@@ -6,6 +6,7 @@ import "./FileSharingTestPage.css";
 import { generateAndStoreKeypair } from "../crypto/keypair";
 import { computeFileHash, computeContentHash } from "../crypto/hashing";
 import { signBlock } from "../crypto/signing";
+import { authHeaders } from "../auth/authFetch";
 import FileTraceScreen from "./FileTraceScreen";
 
 const API_BASE_URL = import.meta.env.VITE_CONFIDENTIALITY_CHAIN_API_URL;
@@ -22,6 +23,18 @@ const API_BASE_URL = import.meta.env.VITE_CONFIDENTIALITY_CHAIN_API_URL;
 //      "unauthorized hop" flag actually fire
 //   5. renders FileTraceScreen — the real trace/lineage component — against
 //      the live GET /api/transfer/metadata/history/{contentHash} endpoint
+//
+// KNOWN LIMITATION: the confidentiality service now requires every
+// register-key/create-metadata/attach-hash/add-participant call to come
+// from the same authenticated user it's claiming to act as (senderId/
+// userId must match the caller's JWT "uid"). This harness fabricates a
+// fresh random senderId per simulated "user" per run, which can never
+// match the one real logged-in tester's token — so shareOrForward() and
+// registerParticipant() will now get 403s from the real backend. Attaching
+// the current session's token (below) is still correct/harmless, but
+// simulating multiple distinct senders this way is no longer possible
+// without a redesign of this harness (e.g. driving it from multiple real
+// logged-in sessions instead of synthesizing identities).
 
 const ArrowIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true" className="fst-arrow">
@@ -46,14 +59,14 @@ async function shareOrForward({ file, fileBuffer, sessionId, previousHash }) {
 
   const keyRes = await fetch(`${API_BASE_URL}/api/keys`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ userId: senderId, publicKey: publicKeyBase64, algorithm: "ECDSA-P256" }),
   });
   if (!keyRes.ok) throw new Error(`Key registration failed: ${keyRes.status}`);
 
   const metaRes = await fetch(`${API_BASE_URL}/api/transfer/metadata`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
       sessionId,
       senderId,
@@ -72,7 +85,7 @@ async function shareOrForward({ file, fileBuffer, sessionId, previousHash }) {
 
   const patchRes = await fetch(`${API_BASE_URL}/api/transfer/metadata/${metadata.transferId}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ fileHash, signature, contentHash }),
   });
   if (!patchRes.ok) throw new Error(`Attaching hash/signature failed: ${patchRes.status}`);
@@ -83,7 +96,7 @@ async function shareOrForward({ file, fileBuffer, sessionId, previousHash }) {
 async function registerParticipant(sessionId, userId) {
   const res = await fetch(`${API_BASE_URL}/api/sessions/${sessionId}/participants`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ userId }),
   });
   if (!res.ok) throw new Error(`Registering participant failed: ${res.status}`);

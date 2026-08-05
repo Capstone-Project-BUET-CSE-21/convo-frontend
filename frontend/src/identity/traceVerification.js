@@ -20,6 +20,7 @@
 // it), otherwise there's no history to query in the first place.
 
 import { fetchPublicKey, importPublicKey, verifyBlock } from "../crypto/verify";
+import { authHeaders } from "../auth/authFetch";
 
 const participantsCache = new Map(); // sessionId -> Promise<Set<userId>>
 
@@ -29,7 +30,7 @@ const participantsCache = new Map(); // sessionId -> Promise<Set<userId>>
 // out over HTTP yet.
 export const fetchSessionParticipants = async (sessionId, baseUrl) => {
   if (!participantsCache.has(sessionId)) {
-    const promise = fetch(`${baseUrl}/api/sessions/${sessionId}/participants`)
+    const promise = fetch(`${baseUrl}/api/sessions/${sessionId}/participants`, { headers: authHeaders() })
       .then((res) => {
         if (!res.ok) {
           throw new Error(`Participants lookup failed for session ${sessionId}: ${res.status}`);

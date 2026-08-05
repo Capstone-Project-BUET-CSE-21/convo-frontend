@@ -3,6 +3,7 @@ import { signBlock } from "../crypto/signing";
 import { embedProvenanceBlock } from "./chainEmbed";
 import { fetchChainHistory } from "./chainReconstruct";
 import { makeVerifyHop } from "../identity/traceVerification";
+import { authHeaders } from "../auth/authFetch";
 
 const CONFIDENTIALITY_API_BASE_URL = import.meta.env.VITE_CONFIDENTIALITY_CHAIN_API_URL;
 
@@ -46,7 +47,7 @@ export const resolvePreviousHash = async (contentHash, baseUrl) => {
 export const requestMetadataBlock = async (sessionCtx, file, previousHash) => {
   const response = await fetch(`${CONFIDENTIALITY_API_BASE_URL}/api/transfer/metadata`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
       sessionId: sessionCtx.sessionId,
       senderId: sessionCtx.senderId,
@@ -68,7 +69,7 @@ export const requestMetadataBlock = async (sessionCtx, file, previousHash) => {
 export const attachHashAndSignature = async (transferId, { fileHash, signature, contentHash }) => {
   const response = await fetch(`${CONFIDENTIALITY_API_BASE_URL}/api/transfer/metadata/${transferId}`, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ fileHash, signature, contentHash }),
   });
 
@@ -87,7 +88,9 @@ export const requestEncryptionKeyBundle = async (sessionCtx) => {
   const recipientIds = Array.isArray(sessionCtx.recipientIds) ? sessionCtx.recipientIds : [];
   const lookups = await Promise.all(
     recipientIds.map(async (recipientId) => {
-      const response = await fetch(`${CONFIDENTIALITY_API_BASE_URL}/api/keys/${recipientId}/ECDH-P256`);
+      const response = await fetch(`${CONFIDENTIALITY_API_BASE_URL}/api/keys/${recipientId}/ECDH-P256`, {
+        headers: authHeaders(),
+      });
       if (!response.ok) {
         throw new Error(`Public key lookup failed for ${recipientId}: ${response.status}`);
       }

@@ -98,11 +98,10 @@ const App = () => {
         <Route path="/auth" element={authUser ? <Navigate to="/home" replace /> : <AuthPage onAuthSuccess={setAuthUser} />} />
         <Route path="/home" element={authUser ? <Homepage homepageAttributes={homepageAttributes} /> : <Navigate to="/auth" replace />} />
         <Route path="/room/:roomId" element={authUser ? <MeetingRoom meetingRoomAttributes={meetingRoomAttributes} /> : <Navigate to="/auth" replace />} />
-        <Route path="/watermark-test" element={authUser ? <WatermarkTestPage /> : <Navigate to="/auth" replace />} />
+        <Route path="/watermark-test" element={<WatermarkTestPage/>} />
         <Route path="/pipeline-test" element={authUser ? <PipelineTestPage /> : <Navigate to="/auth" replace />} />
         <Route path="/file-sharing-test" element={authUser ? <FileSharingTestPage /> : <Navigate to="/auth" replace />} />
-
-        <Route path="/crypto-test" element={<CryptoUnitTestPage />} />
+        <Route path="/crypto-test" element={authUser ? <FileSharingTestPage /> : <CryptoUnitTestPage />} />
       </Routes>
     </>
   )
