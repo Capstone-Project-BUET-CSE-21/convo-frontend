@@ -31,6 +31,7 @@ const useMeetingRoomSession = ({
   const [peerNames, setPeerNames] = useState(new Map());
   const [peerUserIds, setPeerUserIds] = useState(new Map());
   const [peerVideoStates, setPeerVideoStates] = useState(new Map());
+  const [peerAudioStates, setPeerAudioStates] = useState(new Map());
   const [chatMessages, setChatMessages] = useState([]);
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -419,7 +420,7 @@ const useMeetingRoomSession = ({
     iceCandidatesQueueRef.current.set(peerId, []);
   };
 
-  const handleOffer = async (peerId, peerName, offer, peerVideoEnabled, peerUserId) => {
+  const handleOffer = async (peerId, peerName, offer, peerVideoEnabled, peerUserId, peerAudioEnabled) => {
     try {
       const pc = await createPeerConnection(peerId);
       await pc.setRemoteDescription(new RTCSessionDescription(offer));
@@ -430,12 +431,13 @@ const useMeetingRoomSession = ({
       setPeerNames((prev) => new Map(prev).set(peerId, peerName));
       setPeerUserIds((prev) => new Map(prev).set(peerId, peerUserId));
       setPeerVideoStates((prev) => new Map(prev).set(peerId, peerVideoEnabled !== false));
+      setPeerAudioStates((prev) => new Map(prev).set(peerId, peerAudioEnabled !== false));
 
       wsRef.current.send(JSON.stringify({
         type: "answer",
         roomId,
         to: peerId,
-        payload: { answer, name: authUser.displayName, videoEnabled: isVideoEnabled, userId: authUser.id },
+        payload: { answer, name: authUser.displayName, videoEnabled: isVideoEnabled, audioEnabled: isAudioEnabled, userId: authUser.id },
       }));
     } catch (err) {
       console.error("Error handling offer:", err);
@@ -458,7 +460,7 @@ const useMeetingRoomSession = ({
         type: "offer",
         roomId,
         to: peerId,
-        payload: { offer, name: authUser.displayName, videoEnabled: isVideoEnabled, userId: authUser.id },
+        payload: { offer, name: authUser.displayName, videoEnabled: isVideoEnabled, audioEnabled: isAudioEnabled, userId: authUser.id },
       }));
     } catch (err) {
       console.error("Error sending offer to new peer", peerId, err);
@@ -580,6 +582,17 @@ const useMeetingRoomSession = ({
       track.enabled = next;
     });
     setIsAudioEnabled(next);
+
+    // track.enabled is sender-local only and never crosses the wire, so
+    // remote peers can't infer mute state from the media track itself —
+    // tell them explicitly over the signaling channel.
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: "audio-state",
+        roomId,
+        payload: { enabled: next },
+      }));
+    }
   };
 
   const toggleVideo = () => {
@@ -660,7 +673,7 @@ const useMeetingRoomSession = ({
             await sendOffer(data.peerId);
             break;
           case "offer":
-            await handleOffer(data.from, data.payload.name, data.payload.offer, data.payload.videoEnabled,  data.payload.userId);
+            await handleOffer(data.from, data.payload.name, data.payload.offer, data.payload.videoEnabled,  data.payload.userId, data.payload.audioEnabled);
             break;
           case "answer": {
             const pc = pcRef.current.get(data.from);
@@ -671,10 +684,14 @@ const useMeetingRoomSession = ({
             setPeerNames((prev) => new Map(prev).set(data.from, data.payload.name));
             setPeerUserIds((prev) => new Map(prev).set(data.from, data.payload.userId));
             setPeerVideoStates((prev) => new Map(prev).set(data.from, data.payload.videoEnabled !== false));
+            setPeerAudioStates((prev) => new Map(prev).set(data.from, data.payload.audioEnabled !== false));
             break;
           }
           case "video-state":
             setPeerVideoStates((prev) => new Map(prev).set(data.from, data.payload.enabled));
+            break;
+          case "audio-state":
+            setPeerAudioStates((prev) => new Map(prev).set(data.from, data.payload.enabled));
             break;
           case "ice": {
             const pc = pcRef.current.get(data.from);
@@ -739,6 +756,7 @@ const useMeetingRoomSession = ({
     peerNames,
     peerUserIds,
     peerVideoStates,
+    peerAudioStates,
     chatMessages,
     copied,
     copiedLink,
