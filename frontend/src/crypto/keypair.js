@@ -1,6 +1,5 @@
 import { bufferToBase64 } from "./buffers";
 import { authHeaders } from "../auth/authFetch";
-import { fetchPublicKey } from "./verify";
 
 const API_BASE_URL = import.meta.env.VITE_CONFIDENTIALITY_CHAIN_API_URL;
 
@@ -95,17 +94,34 @@ export const registerPublicKey = async (userId, publicKeyBase64, algorithm = "EC
   return res.status; // no body to parse — 201 Created has none
 }
 
+// Deliberately separate from crypto/verify.js's fetchPublicKey, which
+// collapses every non-2xx (404, 401, 500, network blip) into the same
+// null — correct for "is this incoming file's signer verifiable", wrong
+// here. The backend keeps exactly one row per (userId, algorithm) with no
+// history (see PublicKeyEntity), so overwriting it is destructive: it
+// permanently orphans every file already signed with the old key. Only a
+// confirmed 404 means "truly not registered"; anything else (expired
+// token, backend hiccup) must NOT be treated as license to rotate a
+// perfectly good key.
+const isKeyRegisteredOnBackend = async (userId, algorithm) => {
+  const res = await fetch(`${API_BASE_URL}/api/keys/${userId}/${algorithm}`, { headers: authHeaders() });
+  if (res.status === 404) return false;
+  if (res.ok) return true;
+  throw new Error(`Key registration check failed: ${res.status}`);
+};
+
 // Local IndexedDB presence alone isn't proof the backend still has the
 // matching public key registered — e.g. the file-sharing service's key
 // store can be reset (dev DB recreated, redeploy) while this browser's
 // IndexedDB survives. Trusting local-only would leave the sender able to
 // sign with a key nobody else can ever verify. So a local key is only
-// trusted once the backend confirms it still knows about it; otherwise
-// it's dropped and regenerated/re-registered.
+// dropped and regenerated when the backend positively confirms it's gone
+// (404) — an inconclusive check (thrown error above) is left untouched
+// rather than risking a destructive rotation.
 const ensureKeyPair = async (userId, algorithm, generate) => {
   const existingPrivate = await getPrivateKey(userId, algorithm);
   if (existingPrivate) {
-    const registered = await fetchPublicKey(userId, algorithm);
+    const registered = await isKeyRegisteredOnBackend(userId, algorithm);
     if (registered) return;
     await deletePrivateKey(userId, algorithm);
   }
