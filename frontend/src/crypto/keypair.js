@@ -1,5 +1,6 @@
 import { bufferToBase64 } from "./buffers";
 import { authHeaders } from "../auth/authFetch";
+import { fetchPublicKey } from "./verify";
 
 const API_BASE_URL = import.meta.env.VITE_CONFIDENTIALITY_CHAIN_API_URL;
 
@@ -94,26 +95,31 @@ export const registerPublicKey = async (userId, publicKeyBase64, algorithm = "EC
   return res.status; // no body to parse — 201 Created has none
 }
 
-export const ensureUserHasKeys = async (userId) => {
-  const existingEcdsa = await getPrivateKey(userId, "ECDSA-P256");
-  if (!existingEcdsa) {
-    const ecdsa = await generateAndStoreKeypair(userId);
-    try {
-      await registerPublicKey(userId, ecdsa.publicKeyBase64, "ECDSA-P256");
-    } catch (err) {
-      await deletePrivateKey(userId, "ECDSA-P256");
-      throw err;
-    }
+// Local IndexedDB presence alone isn't proof the backend still has the
+// matching public key registered — e.g. the file-sharing service's key
+// store can be reset (dev DB recreated, redeploy) while this browser's
+// IndexedDB survives. Trusting local-only would leave the sender able to
+// sign with a key nobody else can ever verify. So a local key is only
+// trusted once the backend confirms it still knows about it; otherwise
+// it's dropped and regenerated/re-registered.
+const ensureKeyPair = async (userId, algorithm, generate) => {
+  const existingPrivate = await getPrivateKey(userId, algorithm);
+  if (existingPrivate) {
+    const registered = await fetchPublicKey(userId, algorithm);
+    if (registered) return;
+    await deletePrivateKey(userId, algorithm);
   }
 
-  const existingEcdh = await getPrivateKey(userId, "ECDH-P256");
-  if (!existingEcdh) {
-    const ecdh = await generateAndStoreECDHKeypair(userId);
-    try {
-      await registerPublicKey(userId, ecdh.publicKeyBase64, "ECDH-P256");
-    } catch (err) {
-      await deletePrivateKey(userId, "ECDH-P256");
-      throw err;
-    }
+  const { publicKeyBase64 } = await generate(userId);
+  try {
+    await registerPublicKey(userId, publicKeyBase64, algorithm);
+  } catch (err) {
+    await deletePrivateKey(userId, algorithm);
+    throw err;
   }
+};
+
+export const ensureUserHasKeys = async (userId) => {
+  await ensureKeyPair(userId, "ECDSA-P256", generateAndStoreKeypair);
+  await ensureKeyPair(userId, "ECDH-P256", generateAndStoreECDHKeypair);
 };
