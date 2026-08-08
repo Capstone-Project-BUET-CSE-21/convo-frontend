@@ -11,6 +11,17 @@ export const fetchPublicKey = async (userId, algorithm = "ECDSA-P256") => {
   return publicKey;
 }
 
+// Every key this user has registered for the algorithm (newest first). The
+// backend keeps key history additively, so verification can accept a signature
+// made with a since-rotated key — see verifyBlockWithHistory. Returns [] if the
+// user has no registered keys (or the lookup fails).
+export const fetchPublicKeys = async (userId, algorithm = "ECDSA-P256") => {
+  const res = await fetch(`${API_BASE_URL}/api/keys/${userId}/${algorithm}/all`, { headers: authHeaders() });
+  if (!res.ok) return [];
+  const rows = await res.json();
+  return Array.isArray(rows) ? rows.map((r) => r.publicKey).filter(Boolean) : [];
+}
+
 export const importPublicKey = async (publicKeyBase64) => {
   const spki = base64ToBuffer(publicKeyBase64);
   return crypto.subtle.importKey(
@@ -43,4 +54,26 @@ export const verifyBlock = async (signature, fileHash, metadataBlock, publicKey)
   return isValid
     ? { valid: true }
     : { valid: false, reason: "invalid-signature" };
+}
+
+// Verifies against a user's full key history: passes if ANY of their registered
+// keys verifies the signature. This is what makes key rotation non-destructive —
+// a file signed with an old key still verifies after the user's current key has
+// changed. Same result shape as verifyBlock. 'key-not-found' when the user has
+// no registered keys at all; 'invalid-signature' when they have keys but none
+// match.
+export const verifyBlockWithHistory = async (signature, fileHash, metadataBlock, publicKeysBase64) => {
+  if (!publicKeysBase64 || publicKeysBase64.length === 0) {
+    return { valid: false, reason: "key-not-found" };
+  }
+
+  for (const base64 of publicKeysBase64) {
+    const publicKey = await importPublicKey(base64);
+    const result = await verifyBlock(signature, fileHash, metadataBlock, publicKey);
+    if (result.valid) {
+      return { valid: true };
+    }
+  }
+
+  return { valid: false, reason: "invalid-signature" };
 }

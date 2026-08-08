@@ -7,7 +7,7 @@
 // mapping once every check has passed (§5.2 Task 4 — never map identity on
 // untrusted data).
 
-import { fetchPublicKey, importPublicKey, verifyBlock } from "../crypto/verify";
+import { fetchPublicKeys, verifyBlockWithHistory } from "../crypto/verify";
 import { resolvePriorBlockDurable } from "../pipeline/chainReconstruct";
 import { verifyBlockHash, verifyChainLinkage } from "../pipeline/hashVerify";
 import { computeContentHash } from "../crypto/hashing";
@@ -72,14 +72,14 @@ export const verifyIncomingTransfer = async ({
     return rejected("chain-broken");
   }
 
-  // Anisa's 2.4 — signature verification (unchanged).
-  const publicKeyBase64 = await fetchPublicKey(signedBlock.metadata.senderId);
-  const publicKey = publicKeyBase64 ? await importPublicKey(publicKeyBase64) : null;
-  const sigResult = await verifyBlock(
+  // Anisa's 2.4 — signature verification, against the sender's full key
+  // history so a file signed with a since-rotated key still verifies.
+  const publicKeys = await fetchPublicKeys(signedBlock.metadata.senderId);
+  const sigResult = await verifyBlockWithHistory(
     signedBlock.signature,
     signedBlock.fileHash,
     signedBlock.metadata,
-    publicKey
+    publicKeys
   );
 
   if (!sigResult.valid) {

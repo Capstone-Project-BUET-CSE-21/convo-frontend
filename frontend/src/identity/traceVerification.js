@@ -19,7 +19,7 @@
 // pipeline/provenancePipeline.js — nothing currently populates or sends
 // it), otherwise there's no history to query in the first place.
 
-import { fetchPublicKey, importPublicKey, verifyBlock } from "../crypto/verify";
+import { fetchPublicKeys, verifyBlockWithHistory } from "../crypto/verify";
 import { authHeaders } from "../auth/authFetch";
 
 const participantsCache = new Map(); // sessionId -> Promise<Set<userId>>
@@ -77,9 +77,10 @@ export const makeVerifyHop = (contentHash) => async (entry) => {
       timestamp: entry.timestamp,
       previousHash: entry.previousHash ?? null,
     };
-    const publicKeyBase64 = await fetchPublicKey(entry.senderId);
-    const publicKey = publicKeyBase64 ? await importPublicKey(publicKeyBase64) : null;
-    const result = await verifyBlock(entry.signature, entry.fileHash, metadataBlock, publicKey);
+    // Try the sender's full key history — a hop signed with a key the sender
+    // has since rotated away from must still verify.
+    const publicKeys = await fetchPublicKeys(entry.senderId);
+    const result = await verifyBlockWithHistory(entry.signature, entry.fileHash, metadataBlock, publicKeys);
     if (!result.valid) {
       return { valid: false, reason: result.reason ?? "invalid-signature" };
     }
