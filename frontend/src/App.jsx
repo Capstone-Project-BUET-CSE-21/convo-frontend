@@ -19,6 +19,10 @@ const App = () => {
   const [command, setCommand] = useState("Join");
   const [authUser, setAuthUser] = useState(getAuthUser());
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  // Set when this browser was freshly provisioned as a new device on an account
+  // that already had keys elsewhere (see ensureUserHasKeys). Non-blocking — the
+  // device works normally; this is just a "new device added" awareness notice.
+  const [newDeviceNotice, setNewDeviceNotice] = useState(false);
 
   useEffect(() => {
     const token = getAuthToken();
@@ -48,7 +52,8 @@ const App = () => {
 
         const profile = await response.json();
         saveAuthSession({ token, user: profile });
-        await ensureUserHasKeys(profile.id);
+        const keyStatus = await ensureUserHasKeys(profile.id);
+        setNewDeviceNotice(keyStatus?.status === 'new-device');
         setAuthUser(profile);
       } catch (error) {
         if (error?.message === 'Session expired') {
@@ -93,9 +98,32 @@ const App = () => {
 
   return (
     <>
+      {newDeviceNotice && (
+        <div role="status" style={{
+          display: 'flex', alignItems: 'center', gap: '12px',
+          padding: '10px 16px', background: '#1f5f4a', color: '#fff',
+          fontSize: '14px', lineHeight: 1.4,
+        }}>
+          <span style={{ flex: 1 }}>
+            This browser has been set up as a new device on your account. You can
+            send and receive files from here as usual. If this wasn&apos;t you,
+            change your password.
+          </span>
+          <button
+            type="button"
+            onClick={() => setNewDeviceNotice(false)}
+            style={{
+              background: 'transparent', border: '1px solid rgba(255,255,255,0.6)',
+              color: '#fff', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer',
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       <Routes>
         <Route path="/" element={<Navigate to={authUser ? '/home' : '/auth'} replace />} />
-        <Route path="/auth" element={authUser ? <Navigate to="/home" replace /> : <AuthPage onAuthSuccess={setAuthUser} />} />
+        <Route path="/auth" element={authUser ? <Navigate to="/home" replace /> : <AuthPage onAuthSuccess={setAuthUser} onNewDevice={() => setNewDeviceNotice(true)} />} />
         <Route path="/home" element={authUser ? <Homepage homepageAttributes={homepageAttributes} /> : <Navigate to="/auth" replace />} />
         <Route path="/room/:roomId" element={authUser ? <MeetingRoom meetingRoomAttributes={meetingRoomAttributes} /> : <Navigate to="/auth" replace />} />
         <Route path="/watermark-test" element={<WatermarkTestPage/>} />

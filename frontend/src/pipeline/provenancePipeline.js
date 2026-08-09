@@ -86,8 +86,19 @@ export const requestEncryptionKeyBundle = async (sessionCtx) => {
   } 
 
   const recipientIds = Array.isArray(sessionCtx.recipientIds) ? sessionCtx.recipientIds : [];
+  const announcedKeys = sessionCtx.recipientKeys ?? {};
+
   const lookups = await Promise.all(
     recipientIds.map(async (recipientId) => {
+      // Prefer the ECDH key the recipient announced live over the data channel —
+      // the exact device key they're using in this meeting. Fall back to their
+      // current registered key only if they didn't announce one (e.g. an older
+      // peer), which is the legacy "latest key" behavior.
+      const announcedKey = announcedKeys[recipientId];
+      if (announcedKey) {
+        return [recipientId, { publicKey: announcedKey, algorithm: "ECDH-P256" }];
+      }
+
       const response = await fetch(`${CONFIDENTIALITY_API_BASE_URL}/api/keys/${recipientId}/ECDH-P256`, {
         headers: authHeaders(),
       });

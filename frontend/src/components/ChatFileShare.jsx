@@ -96,6 +96,7 @@ const ChatFileShare = forwardRef(function ChatFileShare(
     peers,
     peerNames,
     peerUserIds,
+    peerSessionKeysRef,
     dataChannelsRef,
     onFileSent,
     stagedFile,
@@ -158,12 +159,22 @@ const ChatFileShare = forwardRef(function ChatFileShare(
       time,
     };
 
+    const recipientPeerIds = activeThread === EVERYONE ? peers : [activeThread];
     const sessionCtx = {
       sessionId: roomId,
       senderId: currentUser.id,
-      recipientIds: (activeThread === EVERYONE ? peers : [activeThread])
+      recipientIds: recipientPeerIds
         .map((peerId) => peerUserIds.get(peerId))
         .filter(Boolean),
+      // recipientId -> the ECDH key that recipient announced live in this
+      // meeting (see the session-key handshake). Lets encryption target the
+      // device actually present; requestEncryptionKeyBundle falls back to the
+      // registry for any recipient that didn't announce one.
+      recipientKeys: Object.fromEntries(
+        recipientPeerIds
+          .map((peerId) => [peerUserIds.get(peerId), peerSessionKeysRef?.current?.get(peerId)])
+          .filter(([uid, key]) => uid && key)
+      ),
       onStageChange: (stage) => {
         const progressByStage = {
           metadata: 5,
@@ -299,6 +310,7 @@ ChatFileShare.propTypes = {
   peers: PropTypes.arrayOf(PropTypes.string).isRequired,
   peerNames: PropTypes.instanceOf(Map).isRequired,
   peerUserIds: PropTypes.instanceOf(Map).isRequired,
+  peerSessionKeysRef: PropTypes.shape({ current: PropTypes.instanceOf(Map) }),
   dataChannelsRef: PropTypes.shape({ current: PropTypes.object }).isRequired,
   onFileSent: PropTypes.func.isRequired,
   stagedFile: PropTypes.instanceOf(File),

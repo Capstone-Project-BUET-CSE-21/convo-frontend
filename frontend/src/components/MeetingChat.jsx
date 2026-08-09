@@ -13,7 +13,7 @@ const formatStagedSize = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const MeetingChat = ({ isOpen, onClose, wsRef, dataChannelsRef, roomId, peers, peerNames, peerUserIds, currentUser, chatMessages, onSend, onUnreadChange }) => {
+const MeetingChat = ({ isOpen, onClose, wsRef, dataChannelsRef, roomId, peers, peerNames, peerUserIds, peerSessionKeysRef, currentUser, chatMessages, onSend, onUnreadChange }) => {
   const [activeThread, setActiveThread] = useState(EVERYONE);
   const [draft, setDraft] = useState("");
   const [readUpTo, setReadUpTo] = useState({});
@@ -363,7 +363,8 @@ const MeetingChat = ({ isOpen, onClose, wsRef, dataChannelsRef, roomId, peers, p
               activeThread={activeThread}
               peers={peers}
               peerNames={peerNames}
-              peerUserIds={peerUserIds} 
+              peerUserIds={peerUserIds}
+              peerSessionKeysRef={peerSessionKeysRef}
               dataChannelsRef={dataChannelsRef}
               onFileSent={(msg) => onSend(msg)}
               stagedFile={stagedFile}
@@ -415,6 +416,7 @@ MeetingChat.propTypes = {
   peers: PropTypes.arrayOf(PropTypes.string).isRequired,
   peerNames: PropTypes.instanceOf(Map).isRequired,
   peerUserIds: PropTypes.instanceOf(Map).isRequired,
+  peerSessionKeysRef: PropTypes.shape({ current: PropTypes.instanceOf(Map) }),
   currentUser: PropTypes.shape({
     id: PropTypes.string.isRequired,
     displayName: PropTypes.string.isRequired,

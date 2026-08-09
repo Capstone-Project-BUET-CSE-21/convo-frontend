@@ -29,7 +29,12 @@ export const encryptPayload = async (wrappedBuffer, { senderId, encryptionKeys }
   return new TextEncoder().encode(JSON.stringify(envelope)).buffer;
 }
 
-export const decryptPayload = async (envelopeBuffer, { recipientId }) => {
+// senderPublicKeyBase64 is the sender's live session ECDH key, announced to us
+// over the data channel (see the meeting session-key handshake) — the exact
+// device key the sender encrypted with. We fall back to the sender's current
+// registered key only if no announced key was provided (e.g. an older peer that
+// doesn't announce), which is the legacy "latest key" path.
+export const decryptPayload = async (envelopeBuffer, { recipientId, senderPublicKeyBase64 }) => {
   const envelope = JSON.parse(new TextDecoder().decode(envelopeBuffer));
   const { senderId, iv, ciphertext, recipients } = envelope;
 
@@ -43,11 +48,11 @@ export const decryptPayload = async (envelopeBuffer, { recipientId }) => {
     throw new Error("No ECDH private key found — cannot decrypt");
   }
 
-  const senderPublicKeyBase64 = await fetchECDHPublicKey(senderId);
-  if (!senderPublicKeyBase64) {
-    throw new Error(`No ECDH public key registered for sender ${senderId}`);
+  const resolvedSenderKey = senderPublicKeyBase64 ?? await fetchECDHPublicKey(senderId);
+  if (!resolvedSenderKey) {
+    throw new Error(`No ECDH public key available for sender ${senderId}`);
   }
-  const senderPublicKey = await importECDHPublicKey(senderPublicKeyBase64);
+  const senderPublicKey = await importECDHPublicKey(resolvedSenderKey);
 
   const sharedKey = await deriveSharedKey(recipientPrivateKey, senderPublicKey);
   const rawContentKeyBytes = await decryptData(sharedKey, myEntry.wrappedKey, myEntry.iv);

@@ -20,6 +20,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         peers,
         peerNames,
         peerUserIds,
+        peerSessionKeysRef,
         peerVideoStates,
         peerAudioStates,
         copied,
@@ -139,6 +140,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
                 onClose={() => setIsChatOpen(false)}
                 wsRef={wsRef}
                 dataChannelsRef={dataChannelsRef}
+                peerSessionKeysRef={peerSessionKeysRef}
                 roomId={roomId}
                 peers={peers}
                 peerNames={peerNames}

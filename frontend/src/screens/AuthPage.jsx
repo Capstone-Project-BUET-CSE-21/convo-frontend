@@ -86,7 +86,7 @@ PasswordField.propTypes = {
     onToggle: PropTypes.func,
 };
 
-const AuthPage = ({ onAuthSuccess }) => {
+const AuthPage = ({ onAuthSuccess, onNewDevice }) => {
     const navigate = useNavigate();
     const [mode, setMode] = useState("login");
     const [loginForm, setLoginForm] = useState(emptyLoginForm);
@@ -155,7 +155,8 @@ const AuthPage = ({ onAuthSuccess }) => {
                 const payload = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(payload?.message || "Login failed. Please check your credentials.");
                 saveAuthSession(payload);
-                await ensureUserHasKeys(payload.user.id);
+                const keyStatus = await ensureUserHasKeys(payload.user.id);
+                if (keyStatus?.status === "new-device") onNewDevice();
                 onAuthSuccess(payload.user);
                 setFeedback("Login successful. Redirecting…");
                 navigate("/home", { replace: true });
@@ -198,7 +199,8 @@ const AuthPage = ({ onAuthSuccess }) => {
                 const payload = await res.json().catch(() => ({}));
                 if (!res.ok) throw new Error(payload?.message || "Signup failed. Please try different credentials.");
                 saveAuthSession(payload);
-                await ensureUserHasKeys(payload.user.id);
+                const keyStatus = await ensureUserHasKeys(payload.user.id);
+                if (keyStatus?.status === "new-device") onNewDevice();
                 onAuthSuccess(payload.user);
                 setFeedback("Account created. Redirecting…");
                 navigate("/home", { replace: true });
@@ -387,10 +389,12 @@ const AuthPage = ({ onAuthSuccess }) => {
 
 AuthPage.propTypes = {
     onAuthSuccess: PropTypes.func,
+    onNewDevice: PropTypes.func,
 };
 
 AuthPage.defaultProps = {
     onAuthSuccess: () => { },
+    onNewDevice: () => { },
 };
 
 export default AuthPage;

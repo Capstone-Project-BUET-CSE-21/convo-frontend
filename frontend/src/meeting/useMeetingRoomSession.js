@@ -7,6 +7,7 @@ import { unwrapPayload } from "../pipeline/chainReconstruct";
 import { verifyIncomingTransfer } from "../identity/verifyIncomingTransfer";
 import useMeetingRecording from "./useMeetingRecording";
 import { decryptPayload } from "../pipeline/encryptionEnvelope";
+import { getLocalPublicKeyBase64 } from "../crypto/keypair";
 
 const WS_URL = import.meta.env.VITE_WS_BASE_URL;
 const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
@@ -50,6 +51,11 @@ const useMeetingRoomSession = ({
   const iceCandidatesQueueRef = useRef(new Map());
   const dataChannelsRef = useRef(new Map());
   const incomingTransfersRef = useRef(new Map());
+  // peerId -> the peer's live session ECDH public key, announced over the data
+  // channel when it opens (the "session-key" handshake). This is the exact
+  // device key that peer is using in THIS meeting, so encryption targets the
+  // device actually present rather than whatever key is newest in the registry.
+  const peerSessionKeysRef = useRef(new Map());
   // by Taba
   // const chainStoreRef = useRef(createChainStore());
   const rawStreamRef = useRef(null);
@@ -105,14 +111,36 @@ const useMeetingRoomSession = ({
     }
   };
 
+  // Announce this device's live ECDH public key to the peer as soon as the
+  // channel is usable, so they encrypt files to the key we're actually using in
+  // this meeting (not whatever key is newest in the registry). Sent on open, so
+  // it always arrives before any file transfer the user could trigger.
+  const announceSessionKey = async (channel) => {
+    try {
+      const ecdhPublicKey = await getLocalPublicKeyBase64(authUser.id, "ECDH-P256");
+      if (ecdhPublicKey && channel.readyState === "open") {
+        channel.send(JSON.stringify({ kind: "session-key", userId: authUser.id, ecdhPublicKey }));
+      }
+    } catch (err) {
+      console.error("Failed to announce session key:", err);
+    }
+  };
+
   const setupDataChannel = (peerId, channel) => {
     channel.binaryType = "arraybuffer";
     channel.bufferedAmountLowThreshold = BUFFERED_AMOUNT_LOW_THRESHOLD;
     dataChannelsRef.current.set(peerId, channel);
 
+    if (channel.readyState === "open") {
+      announceSessionKey(channel);
+    } else {
+      channel.addEventListener("open", () => announceSessionKey(channel), { once: true });
+    }
+
     channel.onclose = () => {
       dataChannelsRef.current.delete(peerId);
       incomingTransfersRef.current.delete(peerId);
+      peerSessionKeysRef.current.delete(peerId);
     };
 
     channel.onerror = (err) => {
@@ -133,6 +161,18 @@ const useMeetingRoomSession = ({
       try {
         msg = JSON.parse(data);
       } catch {
+        return;
+      }
+
+      if (msg.kind === "session-key") {
+        // The peer's live ECDH key for this session. We trust WHO the peer is
+        // from the signaling layer (peerUserIds); this just tells us which of
+        // their keys to encrypt to / decrypt with here. A peer that announces a
+        // bogus key only denies itself the transfer, so no cross-check is
+        // required for confidentiality.
+        if (typeof msg.ecdhPublicKey === "string" && msg.ecdhPublicKey) {
+          peerSessionKeysRef.current.set(peerId, msg.ecdhPublicKey);
+        }
         return;
       }
 
@@ -202,7 +242,13 @@ const useMeetingRoomSession = ({
         let decryptedBuffer;
         console.log("Decrypting as authUser.id:", authUser.id);
         try {
-          decryptedBuffer = await decryptPayload(wrappedBuffer, { recipientId: authUser.id });
+          decryptedBuffer = await decryptPayload(wrappedBuffer, {
+            recipientId: authUser.id,
+            // The sender's live session key, announced by this peer over the
+            // channel — the exact device key they encrypted with. Falls back to
+            // the registry inside decryptPayload if the peer didn't announce.
+            senderPublicKeyBase64: peerSessionKeysRef.current.get(peerId),
+          });
         } catch (err) {
           console.error("Decrypt error:", err.name, err.message, err);
           setChatMessages((prev) => [
@@ -755,6 +801,7 @@ const useMeetingRoomSession = ({
     peers,
     peerNames,
     peerUserIds,
+    peerSessionKeysRef,
     peerVideoStates,
     peerAudioStates,
     chatMessages,
