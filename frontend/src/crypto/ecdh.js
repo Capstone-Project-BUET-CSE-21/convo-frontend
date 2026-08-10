@@ -1,10 +1,9 @@
 import { base64ToBuffer } from "./buffers";
 import { authHeaders } from "../auth/authFetch";
-
-const API_BASE_URL = import.meta.env.VITE_CONFIDENTIALITY_CHAIN_API_URL;
+import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
 export const fetchECDHPublicKey = async (userId) => {
-  const res = await fetch(`${API_BASE_URL}/api/keys/${userId}/ECDH-P256`, {
+  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys/${userId}/ECDH-P256`, {
     cache: "no-store",
     headers: authHeaders(),
   });

@@ -7,6 +7,7 @@ const MeetingRoomScene = ({
   peerNames,
   peerVideoStates,
   peerAudioStates,
+  peerConnectionStates,
   isAudioEnabled,
   isVideoEnabled,
   isPlaybackReady,
@@ -52,6 +53,7 @@ const MeetingRoomScene = ({
             isPlaybackReady={isPlaybackReady}
             isVideoEnabled={peerVideoStates.get(peerId) !== false}
             isAudioEnabled={peerAudioStates.get(peerId) !== false}
+            connectionState={peerConnectionStates.get(peerId)}
           />
         ))}
 
@@ -73,6 +75,7 @@ MeetingRoomScene.propTypes = {
   peerNames: PropTypes.instanceOf(Map).isRequired,
   peerVideoStates: PropTypes.instanceOf(Map).isRequired,
   peerAudioStates: PropTypes.instanceOf(Map).isRequired,
+  peerConnectionStates: PropTypes.instanceOf(Map).isRequired,
   isAudioEnabled: PropTypes.bool.isRequired,
   isVideoEnabled: PropTypes.bool.isRequired,
   isPlaybackReady: PropTypes.bool.isRequired,

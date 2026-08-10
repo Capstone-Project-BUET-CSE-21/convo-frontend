@@ -8,8 +8,7 @@ import { computeFileHash, computeContentHash } from "../crypto/hashing";
 import { signBlock } from "../crypto/signing";
 import { authHeaders } from "../auth/authFetch";
 import FileTraceScreen from "./FileTraceScreen";
-
-const API_BASE_URL = import.meta.env.VITE_CONFIDENTIALITY_CHAIN_API_URL;
+import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
 // This exercises the real backend + real frontend modules end to end —
 // nothing here is mocked the way PipelineTestPage.jsx's
@@ -57,14 +56,14 @@ async function shareOrForward({ file, fileBuffer, sessionId, previousHash }) {
   const senderId = crypto.randomUUID();
   const { privateKey, publicKeyBase64 } = await generateAndStoreKeypair(senderId);
 
-  const keyRes = await fetch(`${API_BASE_URL}/api/keys`, {
+  const keyRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ userId: senderId, publicKey: publicKeyBase64, algorithm: "ECDSA-P256" }),
   });
   if (!keyRes.ok) throw new Error(`Key registration failed: ${keyRes.status}`);
 
-  const metaRes = await fetch(`${API_BASE_URL}/api/transfer/metadata`, {
+  const metaRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
@@ -83,7 +82,7 @@ async function shareOrForward({ file, fileBuffer, sessionId, previousHash }) {
   const contentHash = await computeContentHash(fileBuffer);
   const signature = await signBlock(fileHash, metadata, privateKey);
 
-  const patchRes = await fetch(`${API_BASE_URL}/api/transfer/metadata/${metadata.transferId}`, {
+  const patchRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata/${metadata.transferId}`, {
     method: "PATCH",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ fileHash, signature, contentHash }),
@@ -94,7 +93,7 @@ async function shareOrForward({ file, fileBuffer, sessionId, previousHash }) {
 }
 
 async function registerParticipant(sessionId, userId) {
-  const res = await fetch(`${API_BASE_URL}/api/sessions/${sessionId}/participants`, {
+  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/sessions/${sessionId}/participants`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ userId }),

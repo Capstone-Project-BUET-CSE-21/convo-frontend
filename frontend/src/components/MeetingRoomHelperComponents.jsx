@@ -44,7 +44,17 @@ export const MutedIndicator = () => (
 // RemoteParticipantTile — a single remote peer tile (video or avatar)
 // ---------------------------------------------------------------------------
 
-export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef, isPlaybackReady, isVideoEnabled, isAudioEnabled }) => {
+// Maps an RTCPeerConnection.connectionState to a short user-facing label.
+// A steady "connected" (or an as-yet-unknown state) shows nothing.
+const CONNECTION_BADGE = {
+  new: "Connecting…",
+  connecting: "Connecting…",
+  disconnected: "Reconnecting…",
+  failed: "Connection failed",
+  closed: "Disconnected",
+};
+
+export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef, isPlaybackReady, isVideoEnabled, isAudioEnabled, connectionState }) => {
   const videoRef = useRef(null);
   // Tracks whether the peer's stream currently carries a video track at
   // all. NOTE: MediaStreamTrack.enabled is sender-local only and is never
@@ -109,6 +119,7 @@ export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef, isPla
   }, [peerId, remoteVideosRef]);
 
   const hasVideo = hasTrackVideo && isVideoEnabled && isPlaybackReady;
+  const connectionBadge = CONNECTION_BADGE[connectionState];
 
   return (
     <div className="participant-card">
@@ -121,6 +132,9 @@ export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef, isPla
       />
       {!hasVideo && (
         <ParticipantAvatar name={peerName || "Guest"} size="large" />
+      )}
+      {connectionBadge && (
+        <span className="participant-connection-badge">{connectionBadge}</span>
       )}
       {!isAudioEnabled && <MutedIndicator />}
       <span className="participant-label">{peerName || "Guest"}</span>
@@ -144,4 +158,5 @@ RemoteParticipantTile.propTypes = {
   isPlaybackReady: PropTypes.bool.isRequired,
   isVideoEnabled: PropTypes.bool.isRequired,
   isAudioEnabled: PropTypes.bool.isRequired,
+  connectionState: PropTypes.string,
 };

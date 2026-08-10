@@ -2,19 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createLocalMixBus, createWatermarkedPlaybackStream } from "../audio/audioWatermarkSetup";
 import { getAuthToken } from "../auth/authSession";
-import { decodeChunkFrame, reassembleChunkFrames } from "../pipeline/transferFrames";
-import { unwrapPayload } from "../pipeline/chainReconstruct";
-import { verifyIncomingTransfer } from "../identity/verifyIncomingTransfer";
 import useMeetingRecording from "./useMeetingRecording";
-import { decryptPayload } from "../pipeline/encryptionEnvelope";
-import { getLocalPublicKeyBase64 } from "../crypto/keypair";
-
-const WS_URL = import.meta.env.VITE_WS_BASE_URL;
-const BACKEND_URL = import.meta.env.VITE_API_BASE_URL;
-const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL;
-// by taba
-const CONFIDENTIALITY_API_BASE_URL = import.meta.env.VITE_CONFIDENTIALITY_CHAIN_API_URL;
-const BUFFERED_AMOUNT_LOW_THRESHOLD = 1024 * 1024;
+import { WS_URL } from "../config/apiConfig";
+import { makeMeetingEntry, fetchServerCredentials, fetchWatermarkConfig } from "./meetingApi";
+import { createDataChannelTransfer } from "./dataChannelTransfer";
+import { createPeerConnectionManager } from "./peerConnectionManager";
 
 const useMeetingRoomSession = ({
   roomId,
@@ -33,6 +25,10 @@ const useMeetingRoomSession = ({
   const [peerUserIds, setPeerUserIds] = useState(new Map());
   const [peerVideoStates, setPeerVideoStates] = useState(new Map());
   const [peerAudioStates, setPeerAudioStates] = useState(new Map());
+  // peerId -> RTCPeerConnection.connectionState, so the UI can show a
+  // "connecting / reconnecting / failed" badge instead of a peer just silently
+  // being absent or frozen.
+  const [peerConnectionStates, setPeerConnectionStates] = useState(new Map());
   const [chatMessages, setChatMessages] = useState([]);
   const [copied, setCopied] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
@@ -48,6 +44,14 @@ const useMeetingRoomSession = ({
   const serverRef = useRef(null);
   const wsRef = useRef(null);
   const pcRef = useRef(new Map());
+  // This client's own signaling peer id (server session id), handed to us by
+  // the server on start/join. Needed for the deterministic-initiator rule.
+  const selfIdRef = useRef(null);
+  // Authoritative roster of who should be in the room: peerId -> userId. Seeded
+  // from the join roster / peer-joined events and reconciled against by the
+  // retry timer so a lost handshake self-heals instead of leaving a ghost.
+  const knownPeersRef = useRef(new Map());
+  const reconcileTimerRef = useRef(null);
   const iceCandidatesQueueRef = useRef(new Map());
   const dataChannelsRef = useRef(new Map());
   const incomingTransfersRef = useRef(new Map());
@@ -56,8 +60,6 @@ const useMeetingRoomSession = ({
   // device key that peer is using in THIS meeting, so encryption targets the
   // device actually present rather than whatever key is newest in the registry.
   const peerSessionKeysRef = useRef(new Map());
-  // by Taba
-  // const chainStoreRef = useRef(createChainStore());
   const rawStreamRef = useRef(null);
 
   const playbackAudioRef = useRef(null);
@@ -65,6 +67,21 @@ const useMeetingRoomSession = ({
   const playbackWorkletNodeRef = useRef(null);
   const playbackStreamRef = useRef(null);
   const localMixBusRef = useRef(null);
+  // Remote audio tracks that arrived before the mix bus existed (or while it
+  // was being rebuilt). Held here and flushed into the bus once it's ready, so
+  // a track is never silently dropped — the cause of "I can see them but can't
+  // hear them" while their video renders fine.
+  const pendingAudioTracksRef = useRef(new Map());
+
+  // Live mirrors of reactive values the once-constructed helper modules need to
+  // read at event time (not construction time): the latest peer names for file
+  // provenance display, and the current mute/camera flags for offer payloads.
+  const peerNamesRef = useRef(peerNames);
+  const mediaFlagsRef = useRef({ audio: isAudioEnabled, video: isVideoEnabled });
+  useEffect(() => { peerNamesRef.current = peerNames; }, [peerNames]);
+  useEffect(() => {
+    mediaFlagsRef.current = { audio: isAudioEnabled, video: isVideoEnabled };
+  }, [isAudioEnabled, isVideoEnabled]);
 
   const {
     isRecording,
@@ -78,6 +95,51 @@ const useMeetingRoomSession = ({
     playbackWorkletNodeRef,
     roomId,
   });
+
+  // Helper modules, constructed once. They close over stable refs and setters,
+  // and read anything reactive through the mirror refs above.
+  const transferRef = useRef(null);
+  if (!transferRef.current) {
+    transferRef.current = createDataChannelTransfer({
+      authUser,
+      roomId,
+      dataChannelsRef,
+      incomingTransfersRef,
+      peerSessionKeysRef,
+      peerNamesRef,
+      setChatMessages,
+    });
+  }
+  const { setupDataChannel } = transferRef.current;
+
+  const managerRef = useRef(null);
+  if (!managerRef.current) {
+    managerRef.current = createPeerConnectionManager({
+      roomId,
+      authUser,
+      wsRef,
+      pcRef,
+      serverRef,
+      localVideoRef,
+      remoteVideosRef,
+      iceCandidatesQueueRef,
+      dataChannelsRef,
+      incomingTransfersRef,
+      selfIdRef,
+      knownPeersRef,
+      localMixBusRef,
+      pendingAudioTracksRef,
+      mediaFlagsRef,
+      setupDataChannel,
+      setPeers,
+      setPeerNames,
+      setPeerUserIds,
+      setPeerVideoStates,
+      setPeerAudioStates,
+      setPeerConnectionStates,
+    });
+  }
+  const manager = managerRef.current;
 
   const closePlaybackOutput = () => {
     playbackAudioContextRef.current?.close?.();
@@ -111,438 +173,9 @@ const useMeetingRoomSession = ({
     }
   };
 
-  // Announce this device's live ECDH public key to the peer as soon as the
-  // channel is usable, so they encrypt files to the key we're actually using in
-  // this meeting (not whatever key is newest in the registry). Sent on open, so
-  // it always arrives before any file transfer the user could trigger.
-  const announceSessionKey = async (channel) => {
-    try {
-      const ecdhPublicKey = await getLocalPublicKeyBase64(authUser.id, "ECDH-P256");
-      if (ecdhPublicKey && channel.readyState === "open") {
-        channel.send(JSON.stringify({ kind: "session-key", userId: authUser.id, ecdhPublicKey }));
-      }
-    } catch (err) {
-      console.error("Failed to announce session key:", err);
-    }
-  };
-
-  const setupDataChannel = (peerId, channel) => {
-    channel.binaryType = "arraybuffer";
-    channel.bufferedAmountLowThreshold = BUFFERED_AMOUNT_LOW_THRESHOLD;
-    dataChannelsRef.current.set(peerId, channel);
-
-    if (channel.readyState === "open") {
-      announceSessionKey(channel);
-    } else {
-      channel.addEventListener("open", () => announceSessionKey(channel), { once: true });
-    }
-
-    channel.onclose = () => {
-      dataChannelsRef.current.delete(peerId);
-      incomingTransfersRef.current.delete(peerId);
-      peerSessionKeysRef.current.delete(peerId);
-    };
-
-    channel.onerror = (err) => {
-      const isExpectedAbort =
-        err?.error?.message?.includes("User-Initiated Abort") ||
-        err?.error?.message?.includes("Close called");
-
-      if (isExpectedAbort) return;
-      console.error(`Data channel error with ${peerId}:`, err);
-    };
-
-    channel.onmessage = (e) => handleDataChannelMessage(peerId, e.data);
-  };
-
-  const handleDataChannelMessage = async (peerId, data) => {
-    if (typeof data === "string") {
-      let msg;
-      try {
-        msg = JSON.parse(data);
-      } catch {
-        return;
-      }
-
-      if (msg.kind === "session-key") {
-        // The peer's live ECDH key for this session. We trust WHO the peer is
-        // from the signaling layer (peerUserIds); this just tells us which of
-        // their keys to encrypt to / decrypt with here. A peer that announces a
-        // bogus key only denies itself the transfer, so no cross-check is
-        // required for confidentiality.
-        if (typeof msg.ecdhPublicKey === "string" && msg.ecdhPublicKey) {
-          peerSessionKeysRef.current.set(peerId, msg.ecdhPublicKey);
-        }
-        return;
-      }
-
-      if (msg.kind === "wrapped-file-meta") {
-        incomingTransfersRef.current.set(peerId, {
-          meta: msg,
-          chunks: new Map(),
-          chunkCount: msg.totalChunks,
-          receivedBytes: 0,
-        });
-        return;
-      }
-
-      if (msg.kind === "wrapped-file-end") {
-        const transfer = incomingTransfersRef.current.get(peerId);
-        if (!transfer || transfer.meta.transferId !== msg.transferId) return;
-        console.log("File metadata received:", transfer.meta.fileName, transfer.meta);
-        if (transfer.chunkCount == null || transfer.chunks.size !== transfer.chunkCount) {
-          setChatMessages((prev) => [
-            ...prev,
-            {
-              id: Date.now() + Math.random(),
-              type: "chat",
-              from: peerId,
-              fromName: peerNames.get(peerId) || transfer.meta.fromName,
-              to: transfer.meta.to === "__everyone__" ? "__everyone__" : authUser.id,
-              text: "Could not receive file: incomplete chunk stream.",
-              time: Date.now(),
-              isMine: false,
-              error: true,
-            },
-          ]);
-          incomingTransfersRef.current.delete(peerId);
-          return;
-        }
-
-        let wrappedBuffer;
-        try {
-          const orderedChunks = Array.from({ length: transfer.chunkCount }, (_, index) => {
-            const chunk = transfer.chunks.get(index);
-            if (!chunk) {
-              throw new Error(`Missing chunk ${index}`);
-            }
-            return chunk;
-          });
-          wrappedBuffer = reassembleChunkFrames(orderedChunks);
-        } catch (err) {
-          setChatMessages((prev) => [
-            ...prev,
-            {
-              id: Date.now() + Math.random(),
-              type: "chat",
-              from: peerId,
-              fromName: peerNames.get(peerId) || transfer.meta.fromName,
-              to: transfer.meta.to === "__everyone__" ? "__everyone__" : authUser.id,
-              text: `Could not receive file: ${err.message}`,
-              time: Date.now(),
-              isMine: false,
-              error: true,
-            },
-          ]);
-          incomingTransfersRef.current.delete(peerId);
-          return;
-        }
-
-        // with:
-        let decryptedBuffer;
-        console.log("Decrypting as authUser.id:", authUser.id);
-        try {
-          decryptedBuffer = await decryptPayload(wrappedBuffer, {
-            recipientId: authUser.id,
-            // The sender's live session key, announced by this peer over the
-            // channel — the exact device key they encrypted with. Falls back to
-            // the registry inside decryptPayload if the peer didn't announce.
-            senderPublicKeyBase64: peerSessionKeysRef.current.get(peerId),
-          });
-        } catch (err) {
-          console.error("Decrypt error:", err.name, err.message, err);
-          setChatMessages((prev) => [
-            ...prev,
-
-            {
-              id: Date.now() + Math.random(),
-              type: "chat",
-              from: peerId,
-              fromName: peerNames.get(peerId) || transfer.meta.fromName,
-              to: transfer.meta.to === "__everyone__" ? "__everyone__" : authUser.id,
-              text: `Could not decrypt file: ${err.message}`,
-              time: Date.now(),
-              isMine: false,
-              error: true,
-            },
-          ]);
-          incomingTransfersRef.current.delete(peerId);
-          return;
-        }
-        let signedBlock;
-        let fileBytes;
-        try {
-          ({ signedBlock, fileBytes } = unwrapPayload(decryptedBuffer));
-        } catch (err) { 
-          setChatMessages((prev) => [
-            ...prev,
-            {
-              id: Date.now() + Math.random(),
-              type: "chat",
-              from: peerId,
-              fromName: peerNames.get(peerId) || transfer.meta.fromName,
-              to: transfer.meta.to === "__everyone__" ? "__everyone__" : authUser.id,
-              text: `Could not receive file: ${err.message}`,
-              time: Date.now(),
-              isMine: false,
-              error: true,
-            },
-          ]);
-          incomingTransfersRef.current.delete(peerId);
-          return;
-        }
-
-        const blob = new Blob([fileBytes], {
-          type: transfer.meta.fileType || "application/octet-stream",
-        });
-        const fileUrl = URL.createObjectURL(blob);
-
-        let provenance;
-        try {
-          // provenance = await verifyIncomingTransfer({
-          //   signedBlock,
-          //   fileBytes,
-          //   chainStore: chainStoreRef.current,
-          //   peerNames,
-          //   fallbackName: peerNames.get(peerId) || transfer.meta.fromName,
-          //   sessionName: roomId,
-          // });
-          // added by taba
-            provenance = await verifyIncomingTransfer({
-            signedBlock,
-            fileBytes,
-            baseUrl: CONFIDENTIALITY_API_BASE_URL,   // NOT BACKEND_URL — this is the
-                                                      // service that owns /api/transfer/metadata,
-                                                      // same one provenancePipeline.js posts to
-            peerNames,
-            fallbackName: peerNames.get(peerId) || transfer.meta.fromName,
-            sessionName: roomId,
-          });
-        } catch (err) {
-          console.error("Provenance verification failed unexpectedly:", err);
-          provenance = { valid: false, reason: "verification error", senderName: null, timestamp: null };
-        }
-
-        setChatMessages((prev) => [
-          ...prev,
-          {
-            id: Date.now() + Math.random(),
-            type: "file",
-            from: peerId,
-            fromName: peerNames.get(peerId) || transfer.meta.fromName,
-            to: transfer.meta.to === "__everyone__" ? "__everyone__" : authUser.id,
-            fileId: transfer.meta.transferId,
-            fileUrl,
-            fileName: transfer.meta.fileName,
-            fileType: transfer.meta.fileType,
-            fileSize: transfer.meta.fileSize,
-            time: transfer.meta.time,
-            isMine: false,
-            provenance,
-          },
-        ]);
-
-        incomingTransfersRef.current.delete(peerId);
-        return;
-      }
-
-      return;
-    }
-
-    const transfer = incomingTransfersRef.current.get(peerId);
-    if (!transfer) return;
-
-    try {
-      const { chunkIndex, payload } = decodeChunkFrame(data);
-      transfer.chunks.set(chunkIndex, payload);
-      transfer.receivedBytes += payload.byteLength;
-    } catch (err) {
-      setChatMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + Math.random(),
-          type: "chat",
-          from: peerId,
-          fromName: peerNames.get(peerId) || "Guest",
-          to: authUser.id,
-          text: `Could not receive file chunk: ${err.message}`,
-          time: Date.now(),
-          isMine: false,
-          error: true,
-        },
-      ]);
-      incomingTransfersRef.current.delete(peerId);
-    }
-  };
-
-  const removePeer = (peerId) => {
-    const channel = dataChannelsRef.current.get(peerId);
-    if (channel) channel.close();
-
-    const pc = pcRef.current.get(peerId);
-    if (pc) pc.close();
-
-    localMixBusRef.current?.removeSource(peerId);
-
-    pcRef.current.delete(peerId);
-    iceCandidatesQueueRef.current.delete(peerId);
-    remoteVideosRef.current.delete(peerId);
-    dataChannelsRef.current.delete(peerId);
-    incomingTransfersRef.current.delete(peerId);
-    setPeers((prev) => prev.filter((id) => id !== peerId));
-  };
-
-  const createPeerConnection = async (peerId) => {
-    if (pcRef.current.has(peerId)) {
-      return pcRef.current.get(peerId);
-    }
-
-    const pc = new RTCPeerConnection({ iceServers: serverRef.current });
-
-    if (localVideoRef.current?.srcObject) {
-      const stream = localVideoRef.current.srcObject;
-      stream.getTracks().forEach((track) => {
-        pc.addTrack(track, stream);
-      });
-    }
-
-    const remoteStream = new MediaStream();
-    remoteVideosRef.current.set(peerId, remoteStream);
-
-    pc.ontrack = (e) => {
-      const track = e.track;
-
-      if (track.kind === "audio") {
-        localMixBusRef.current?.addSource(peerId, track);
-        track.addEventListener("ended", () => {
-          localMixBusRef.current?.removeSource(peerId);
-        });
-      }
-
-      e.streams[0].getTracks().forEach((t) => {
-        if (!remoteStream.getTracks().includes(t)) {
-          remoteStream.addTrack(t);
-          remoteStream.dispatchEvent(new Event("addtrack"));
-        }
-      });
-    };
-
-    pc.onicecandidate = (e) => {
-      if (e.candidate) {
-        wsRef.current.send(JSON.stringify({
-          type: "ice",
-          roomId,
-          to: peerId,
-          payload: e.candidate,
-        }));
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "failed" || pc.connectionState === "closed") {
-        removePeer(peerId);
-      }
-    };
-
-    pc.ondatachannel = (e) => setupDataChannel(peerId, e.channel);
-
-    pcRef.current.set(peerId, pc);
-    setPeers((prev) => (prev.includes(peerId) ? prev : [...prev, peerId]));
-    return pc;
-  };
-
-  const processQueuedCandidates = async (peerId) => {
-    const pc = pcRef.current.get(peerId);
-    if (!pc || !pc.remoteDescription) return;
-
-    const queue = iceCandidatesQueueRef.current.get(peerId) || [];
-    for (const candidate of queue) {
-      try {
-        await pc.addIceCandidate(new RTCIceCandidate(candidate));
-      } catch (err) {
-        console.error("Error adding queued ICE candidate:", err);
-      }
-    }
-    iceCandidatesQueueRef.current.set(peerId, []);
-  };
-
-  const handleOffer = async (peerId, peerName, offer, peerVideoEnabled, peerUserId, peerAudioEnabled) => {
-    try {
-      const pc = await createPeerConnection(peerId);
-      await pc.setRemoteDescription(new RTCSessionDescription(offer));
-      await processQueuedCandidates(peerId);
-      const answer = await pc.createAnswer();
-      await pc.setLocalDescription(answer);
-
-      setPeerNames((prev) => new Map(prev).set(peerId, peerName));
-      setPeerUserIds((prev) => new Map(prev).set(peerId, peerUserId));
-      setPeerVideoStates((prev) => new Map(prev).set(peerId, peerVideoEnabled !== false));
-      setPeerAudioStates((prev) => new Map(prev).set(peerId, peerAudioEnabled !== false));
-
-      wsRef.current.send(JSON.stringify({
-        type: "answer",
-        roomId,
-        to: peerId,
-        payload: { answer, name: authUser.displayName, videoEnabled: isVideoEnabled, audioEnabled: isAudioEnabled, userId: authUser.id },
-      }));
-    } catch (err) {
-      console.error("Error handling offer:", err);
-    }
-  };
-
-  const sendOffer = async (peerId) => {
-    try {
-      const pc = await createPeerConnection(peerId);
-
-      if (!dataChannelsRef.current.has(peerId)) {
-        const channel = pc.createDataChannel("file-transfer", { ordered: true });
-        setupDataChannel(peerId, channel);
-      }
-
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      wsRef.current.send(JSON.stringify({
-        type: "offer",
-        roomId,
-        to: peerId,
-        payload: { offer, name: authUser.displayName, videoEnabled: isVideoEnabled, audioEnabled: isAudioEnabled, userId: authUser.id },
-      }));
-    } catch (err) {
-      console.error("Error sending offer to new peer", peerId, err);
-    }
-  };
-
-  const makeMeetingEntry = async () => {
-    const token = getAuthToken();
-    const response = await fetch(`${BACKEND_URL}/api/backend/meeting-entry`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify({ command, roomId }),
-    });
-
-    if (!response.ok) {
-      throw new Error(`Meeting entry request failed: ${response.status}`);
-    }
-  };
-
-  const fetchWatermarkConfig = async () => {
-    const res = await fetch(
-      `${WATERMARK_URL}/api/watermark/config?roomId=${encodeURIComponent(roomId)}&userId=${encodeURIComponent(authUser.id)}`,
-      { method: "GET" }
-    );
-    if (!res.ok) {
-      throw new Error(`Watermark config request failed: ${res.status}`);
-    }
-    return res.json();
-  };
-
   const initPlaybackWatermark = async () => {
     try {
-      const config = await fetchWatermarkConfig();
+      const config = await fetchWatermarkConfig({ roomId, userId: authUser.id });
       const result = await createWatermarkedPlaybackStream({
         mixedStream: localMixBusRef.current.mixedStream,
         config,
@@ -569,20 +202,9 @@ const useMeetingRoomSession = ({
     }
   };
 
-  const fetchServerCredentials = async () => {
+  const loadServerCredentials = async () => {
     try {
-      const token = getAuthToken();
-      const response = await fetch(`${BACKEND_URL}/api/backend/credentials`, {
-        method: "GET",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
-
-      if (!response.ok) {
-        throw new Error(`Credentials request failed: ${response.status}`);
-      }
-
-      const data = await response.json();
-      serverRef.current = data.credentials;
+      serverRef.current = await fetchServerCredentials();
     } catch (err) {
       console.error("Failed to fetch server credentials:", err);
     }
@@ -596,10 +218,16 @@ const useMeetingRoomSession = ({
   };
 
   const leaveRoom = () => {
+    if (reconcileTimerRef.current) {
+      clearInterval(reconcileTimerRef.current);
+      reconcileTimerRef.current = null;
+    }
+
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({ type: "leave", roomId }));
     }
 
+    knownPeersRef.current.clear();
     pcRef.current.forEach((pc) => pc.close());
     pcRef.current.clear();
     iceCandidatesQueueRef.current.clear();
@@ -676,8 +304,8 @@ const useMeetingRoomSession = ({
             autoGainControl: true,
           },
         }),
-        fetchServerCredentials(),
-        makeMeetingEntry(),
+        loadServerCredentials(),
+        makeMeetingEntry({ command, roomId }),
       ]);
 
       rawStream.getAudioTracks().forEach((track) => {
@@ -692,6 +320,9 @@ const useMeetingRoomSession = ({
 
       const mixBus = createLocalMixBus();
       localMixBusRef.current = mixBus;
+
+      // Flush any remote audio tracks that arrived before the bus existed.
+      pendingAudioTracksRef.current.forEach((track, pid) => manager.attachRemoteAudio(pid, track));
 
       initPlaybackWatermark();
 
@@ -715,17 +346,57 @@ const useMeetingRoomSession = ({
             alert("Room already exists.");
             navigate("/");
             break;
+          case "room-created":
+            selfIdRef.current = data.selfId;
+            break;
+          case "existing-peers": {
+            // Authoritative roster from the server: record everyone already
+            // here, then (as the deterministic initiator) offer the peers we're
+            // responsible for. Non-initiator pairs wait for the other side's
+            // offer; the reconcile timer covers anything that goes missing.
+            selfIdRef.current = data.selfId;
+            for (const peer of data.peers || []) {
+              knownPeersRef.current.set(peer.peerId, peer.userId);
+              if (peer.userId) {
+                setPeerUserIds((prev) => new Map(prev).set(peer.peerId, peer.userId));
+              }
+              if (manager.isInitiator(peer.peerId)) {
+                await manager.sendOffer(peer.peerId);
+              }
+            }
+            break;
+          }
           case "peer-joined":
-            await sendOffer(data.peerId);
+            knownPeersRef.current.set(data.peerId, data.userId);
+            if (data.userId) {
+              setPeerUserIds((prev) => new Map(prev).set(data.peerId, data.userId));
+            }
+            // Only the deterministic initiator offers; the other side answers.
+            if (manager.isInitiator(data.peerId)) {
+              await manager.sendOffer(data.peerId);
+            }
+            break;
+          case "request-offer":
+            // The non-initiator side is missing us; (re)offer if we're the
+            // initiator and don't already have a working connection.
+            if (manager.isInitiator(data.from)) {
+              if (!knownPeersRef.current.has(data.from)) {
+                knownPeersRef.current.set(data.from, "");
+              }
+              if (!manager.isConnectionUsable(data.from)) {
+                if (pcRef.current.has(data.from)) manager.removePeer(data.from);
+                await manager.sendOffer(data.from);
+              }
+            }
             break;
           case "offer":
-            await handleOffer(data.from, data.payload.name, data.payload.offer, data.payload.videoEnabled,  data.payload.userId, data.payload.audioEnabled);
+            await manager.handleOffer(data.from, data.payload.name, data.payload.offer, data.payload.videoEnabled, data.payload.userId, data.payload.audioEnabled);
             break;
           case "answer": {
             const pc = pcRef.current.get(data.from);
             if (pc) {
               await pc.setRemoteDescription(new RTCSessionDescription(data.payload.answer));
-              await processQueuedCandidates(data.from);
+              await manager.processQueuedCandidates(data.from);
             }
             setPeerNames((prev) => new Map(prev).set(data.from, data.payload.name));
             setPeerUserIds((prev) => new Map(prev).set(data.from, data.payload.userId));
@@ -770,18 +441,26 @@ const useMeetingRoomSession = ({
             ]);
             break;
           case "peer-left":
-            removePeer(data.peerId);
+            knownPeersRef.current.delete(data.peerId);
+            manager.removePeer(data.peerId);
             break;
         }
       };
 
       ws.onerror = (e) => console.error("WebSocket error:", e);
       ws.onclose = () => console.log("WebSocket closed");
+
+      // Self-healing retry: re-attempt any roster peer we're not connected to.
+      reconcileTimerRef.current = setInterval(manager.reconcilePeers, 3000);
     };
 
     initialize();
 
     return () => {
+      if (reconcileTimerRef.current) {
+        clearInterval(reconcileTimerRef.current);
+        reconcileTimerRef.current = null;
+      }
       stopRecording();
       closePlaybackOutput();
       localMixBusRef.current?.close();
@@ -804,6 +483,7 @@ const useMeetingRoomSession = ({
     peerSessionKeysRef,
     peerVideoStates,
     peerAudioStates,
+    peerConnectionStates,
     chatMessages,
     copied,
     copiedLink,

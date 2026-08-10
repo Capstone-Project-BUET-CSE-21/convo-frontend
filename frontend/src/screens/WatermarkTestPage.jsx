@@ -2,8 +2,7 @@ import { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import "./WatermarkTestPage.css";
 import PropTypes from "prop-types";
-
-const WATERMARK_URL = import.meta.env.VITE_WATERMARK_API_URL;
+import { WATERMARK_URL } from "../config/apiConfig";
 
 const ArrowIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true" className="wt-arrow">

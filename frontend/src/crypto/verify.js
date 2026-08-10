@@ -1,11 +1,10 @@
 import { canonicalize } from "./canonicalize";
 import { concatBuffers, hexToBuffer, base64ToBuffer } from "./buffers";
 import { authHeaders } from "../auth/authFetch";
-
-const API_BASE_URL = import.meta.env.VITE_CONFIDENTIALITY_CHAIN_API_URL;
+import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
 export const fetchPublicKey = async (userId, algorithm = "ECDSA-P256") => {
-  const res = await fetch(`${API_BASE_URL}/api/keys/${userId}/${algorithm}`, { headers: authHeaders() });
+  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys/${userId}/${algorithm}`, { headers: authHeaders() });
   if (!res.ok) return null;
   const { publicKey } = await res.json();
   return publicKey;
@@ -16,7 +15,7 @@ export const fetchPublicKey = async (userId, algorithm = "ECDSA-P256") => {
 // made with a since-rotated key — see verifyBlockWithHistory. Returns [] if the
 // user has no registered keys (or the lookup fails).
 export const fetchPublicKeys = async (userId, algorithm = "ECDSA-P256") => {
-  const res = await fetch(`${API_BASE_URL}/api/keys/${userId}/${algorithm}/all`, { headers: authHeaders() });
+  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys/${userId}/${algorithm}/all`, { headers: authHeaders() });
   if (!res.ok) return [];
   const rows = await res.json();
   return Array.isArray(rows) ? rows.map((r) => r.publicKey).filter(Boolean) : [];

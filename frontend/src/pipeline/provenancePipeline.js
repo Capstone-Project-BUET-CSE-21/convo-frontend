@@ -4,8 +4,7 @@ import { embedProvenanceBlock } from "./chainEmbed";
 import { fetchChainHistory } from "./chainReconstruct";
 import { makeVerifyHop } from "../identity/traceVerification";
 import { authHeaders } from "../auth/authFetch";
-
-const CONFIDENTIALITY_API_BASE_URL = import.meta.env.VITE_CONFIDENTIALITY_CHAIN_API_URL;
+import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
 const emitStage = (sessionCtx, stage) => {
   sessionCtx?.onStageChange?.(stage);
@@ -45,7 +44,7 @@ export const resolvePreviousHash = async (contentHash, baseUrl) => {
 };
 
 export const requestMetadataBlock = async (sessionCtx, file, previousHash) => {
-  const response = await fetch(`${CONFIDENTIALITY_API_BASE_URL}/api/transfer/metadata`, {
+  const response = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
@@ -67,7 +66,7 @@ export const requestMetadataBlock = async (sessionCtx, file, previousHash) => {
 };
 
 export const attachHashAndSignature = async (transferId, { fileHash, signature, contentHash }) => {
-  const response = await fetch(`${CONFIDENTIALITY_API_BASE_URL}/api/transfer/metadata/${transferId}`, {
+  const response = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata/${transferId}`, {
     method: "PATCH",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ fileHash, signature, contentHash }),
@@ -81,7 +80,7 @@ export const attachHashAndSignature = async (transferId, { fileHash, signature, 
 };
 
 export const requestEncryptionKeyBundle = async (sessionCtx) => {
-  if (!CONFIDENTIALITY_API_BASE_URL) {
+  if (!CONFIDENTIALITY_CHAIN_URL) {
     throw new Error("Confidentiality service URL is not configured");
   } 
 
@@ -99,7 +98,7 @@ export const requestEncryptionKeyBundle = async (sessionCtx) => {
         return [recipientId, { publicKey: announcedKey, algorithm: "ECDH-P256" }];
       }
 
-      const response = await fetch(`${CONFIDENTIALITY_API_BASE_URL}/api/keys/${recipientId}/ECDH-P256`, {
+      const response = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys/${recipientId}/ECDH-P256`, {
         headers: authHeaders(),
       });
       if (!response.ok) {
@@ -123,7 +122,7 @@ export async function prepareFileForTransfer(file, sessionCtx = {}) {
 
   emitStage(sessionCtx, { phase: "metadata", label: "Checking prior shares", progress: 0 });
   const contentHash = await computeContentHash(fileBuffer);
-  const previousHash = await resolvePreviousHash(contentHash, CONFIDENTIALITY_API_BASE_URL);
+  const previousHash = await resolvePreviousHash(contentHash, CONFIDENTIALITY_CHAIN_URL);
 
   emitStage(sessionCtx, { phase: "metadata", label: "Fetching provenance metadata", progress: 5 });
   const metadata = await requestMetadataBlock(sessionCtx, file, previousHash);

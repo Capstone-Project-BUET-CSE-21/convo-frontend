@@ -9,7 +9,7 @@ import PipelineTestPage from './screens/PipelineTestPage'
 import FileSharingTestPage from './screens/FileSharingTestPage'
 import { clearAuthSession, getAuthToken, getAuthUser, saveAuthSession } from './auth/authSession'
 import CryptoUnitTestPage from './crypto/CryptoUnitTestPage'
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { BACKEND_URL } from './config/apiConfig'
 import { ensureUserHasKeys } from './crypto/keypair';
 
 const App = () => {
@@ -35,7 +35,7 @@ const App = () => {
 
     const bootstrapSession = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
+        const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${token}`,

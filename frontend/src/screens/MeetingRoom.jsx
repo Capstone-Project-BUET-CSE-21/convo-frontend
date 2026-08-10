@@ -23,6 +23,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         peerSessionKeysRef,
         peerVideoStates,
         peerAudioStates,
+        peerConnectionStates,
         copied,
         copiedLink,
         isChatOpen,
@@ -113,6 +114,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
                 peerNames={peerNames}
                 peerVideoStates={peerVideoStates}
                 peerAudioStates={peerAudioStates}
+                peerConnectionStates={peerConnectionStates}
                 isAudioEnabled={isAudioEnabled}
                 isVideoEnabled={isVideoEnabled}
                 isPlaybackReady={isPlaybackReady}

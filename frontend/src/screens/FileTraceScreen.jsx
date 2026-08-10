@@ -5,8 +5,7 @@ import "./FileTraceScreen.css";
 import { traceChain } from "../pipeline/chainReconstruct";
 import { makeVerifyHop, makeIsAuthorizedHop } from "../identity/traceVerification";
 import { formatRelativeTime } from "../identity/senderIdentity";
-
-const CONFIDENTIALITY_API_BASE_URL = import.meta.env.VITE_CONFIDENTIALITY_CHAIN_API_URL;
+import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
 // 5.3 — The trace/lineage screen: meeting-by-meeting, person-by-person,
 // with "chain broken here" and "unauthorized person here" rendered as
@@ -20,7 +19,7 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
   const [state, setState] = useState({ status: "loading", hops: [], stopReason: null, error: null });
 
   const verifyHop = useMemo(() => makeVerifyHop(contentHash), [contentHash]);
-  const isAuthorizedHop = useMemo(() => makeIsAuthorizedHop(CONFIDENTIALITY_API_BASE_URL), []);
+  const isAuthorizedHop = useMemo(() => makeIsAuthorizedHop(CONFIDENTIALITY_CHAIN_URL), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -31,7 +30,7 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
         const { hops, stopReason } = await traceChain(
           contentHash,
           startFileHash,
-          CONFIDENTIALITY_API_BASE_URL,
+          CONFIDENTIALITY_CHAIN_URL,
           { verifyHop, isAuthorizedHop }
         );
         if (!cancelled) {

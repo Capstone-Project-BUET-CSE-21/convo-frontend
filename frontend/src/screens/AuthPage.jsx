@@ -4,8 +4,7 @@ import PropTypes from "prop-types";
 import { saveAuthSession } from "../auth/authSession";
 import "./AuthPage.css";
 import { ensureUserHasKeys } from "../crypto/keypair";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+import { BACKEND_URL } from "../config/apiConfig";
 
 const emptyLoginForm = { email: "", password: "" };
 const emptySignupForm = {
@@ -144,7 +143,7 @@ const AuthPage = ({ onAuthSuccess, onNewDevice }) => {
             setError("");
             setFeedback("");
             try {
-                const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -185,7 +184,7 @@ const AuthPage = ({ onAuthSuccess, onNewDevice }) => {
             setError("");
             setFeedback("");
             try {
-                const res = await fetch(`${API_BASE_URL}/api/auth/signup`, {
+                const res = await fetch(`${BACKEND_URL}/api/auth/signup`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

@@ -21,8 +21,7 @@ import { concatBuffers } from "../crypto/buffers";
 import { verifyBlockHash, verifyChainLinkage, verifyReceivedBlock } from "../pipeline/hashVerify";
 import { verifyIncomingTransfer } from "../identity/verifyIncomingTransfer";
 import { resolveSenderName, formatRelativeTime } from "../identity/senderIdentity";
-
-const API_BASE_URL = import.meta.env.VITE_PIPELINE_API_URL;
+import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
 // Shared log renderer, same shape/style as Anisa's CryptoTest so the
 // three sections on this page read consistently.
@@ -335,7 +334,7 @@ const IntegrationTest = () => {
     try {
       // 1. keypair + registration
       const { privateKey, publicKeyBase64 } = await generateAndStoreKeypair(senderId);
-      const regRes = await fetch(`${API_BASE_URL}/api/keys`, {
+      const regRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: senderId, publicKey: publicKeyBase64, algorithm: "ECDSA-P256" }),
@@ -344,7 +343,7 @@ const IntegrationTest = () => {
       if (!regRes.ok) throw new Error("Key registration failed");
 
       // 2. request metadata block
-      const metaRes = await fetch(`${API_BASE_URL}/api/transfer/metadata`, {
+      const metaRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -371,7 +370,7 @@ const IntegrationTest = () => {
       print("Sign block (Anisa 2.3)", !!signature, signature.slice(0, 24) + "…");
 
       // 4. PATCH backend
-      const patchRes = await fetch(`${API_BASE_URL}/api/transfer/metadata/${metadata.transferId}`, {
+      const patchRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata/${metadata.transferId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fileHash, signature }),
@@ -390,7 +389,7 @@ const IntegrationTest = () => {
       if (!roundTripOk) throw new Error("File bytes did not round-trip");
 
       // 7. receiver fetches sender's public key
-      const keyRes = await fetch(`${API_BASE_URL}/api/keys/${senderId}`);
+      const keyRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys/${senderId}`);
       if (!keyRes.ok) throw new Error(`Public key lookup failed: ${keyRes.status}`);
       const { publicKey: fetchedKeyB64 } = await keyRes.json();
       print("Receiver fetches sender's public key (Fariha 3.2)", !!fetchedKeyB64);
@@ -425,14 +424,9 @@ const IntegrationTest = () => {
 
   return (
     <Section title="Full pipeline — Anisa + Fariha (live) + Suchi, chained end to end">
-      {!API_BASE_URL && (
-        <div style={{ color: "orange", marginBottom: 10 }}>
-          VITE_API_BASE_URL isn&apos;t set — this section needs it to reach Fariha&apos;s backend.
-        </div>
-      )}
       <button
         onClick={runIntegration}
-        disabled={running || !API_BASE_URL}
+        disabled={running || !CONFIDENTIALITY_CHAIN_URL}
         style={{ padding: "8px 16px", fontSize: 14 }}
       >
         {running ? "Running…" : "Run Full Pipeline"}
@@ -582,13 +576,13 @@ const VerificationIntegrationTest = () => {
     const fileBuffer = new TextEncoder().encode(fileText).buffer;
 
     const { privateKey, publicKeyBase64 } = await generateAndStoreKeypair(senderId);
-    await fetch(`${API_BASE_URL}/api/keys`, {
+    await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: senderId, publicKey: publicKeyBase64, algorithm: "ECDSA-P256" }),
     });
 
-    const metaRes = await fetch(`${API_BASE_URL}/api/transfer/metadata`, {
+    const metaRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -605,7 +599,7 @@ const VerificationIntegrationTest = () => {
     const fileHash = await computeFileHash(fileBuffer, metadata);
     const signature = await signBlock(fileHash, metadata, privateKey);
 
-    await fetch(`${API_BASE_URL}/api/transfer/metadata/${metadata.transferId}`, {
+    await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata/${metadata.transferId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fileHash, signature }),
@@ -682,14 +676,9 @@ const VerificationIntegrationTest = () => {
 
   return (
     <Section title="Verification — full pipeline (live backend, tamper + chain-break cases)">
-      {!API_BASE_URL && (
-        <div style={{ color: "orange", marginBottom: 10 }}>
-          VITE_PIPELINE_API_URL isn&apos;t set — this section needs it to reach the metadata service&apos;s backend.
-        </div>
-      )}
       <button
         onClick={runIntegration}
-        disabled={running || !API_BASE_URL}
+        disabled={running || !CONFIDENTIALITY_CHAIN_URL}
         style={{ padding: "8px 16px", fontSize: 14 }}
       >
         {running ? "Running…" : "Run Verification Integration Test"}

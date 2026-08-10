@@ -16,6 +16,7 @@ import {
 } from "../crypto/aesGcm";
 
 import { encryptPayload, decryptPayload } from "../pipeline/encryptionEnvelope";
+import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
 
 export default function CryptoUnitTestPage() {
@@ -75,7 +76,7 @@ export default function CryptoUnitTestPage() {
             const privJwk = await crypto.subtle.exportKey("jwk", priv);
             print(`Local private key's public coords: x=${privJwk.x.slice(0, 20)}... y=${privJwk.y.slice(0, 20)}...`);
 
-            const res = await fetch(`http://localhost:8082/api/keys/${userId}/ECDH-P256`);
+            const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys/${userId}/ECDH-P256`);
             const { publicKey } = await res.json();
             const pub = await importECDHPublicKey(publicKey);
             const pubJwk = await crypto.subtle.exportKey("jwk", pub);

@@ -65,8 +65,8 @@
   justify-content: space-between;
   padding: 0 1.5rem;
   background: var(--surface-header);
-  backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--border-room);
   gap: 1rem;
   z-index: 10;
@@ -357,8 +357,8 @@
   padding: 0 1.5rem;
 
   background: var(--surface-toolbar);
-  backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 
   border-top: 1px solid var(--border-room);
   z-index: 1000;
@@ -404,8 +404,8 @@
   font-weight: 500;
   color: rgba(255, 255, 255, 0.9);
   background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   padding: 3px 8px;
   border-radius: 6px;
   letter-spacing: 0.02em;
@@ -437,6 +437,25 @@
 
 .participant-muted-indicator svg {
   stroke: currentColor;
+}
+
+
+/* ── Connection-state badge on tile ── */
+
+.participant-connection-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  background: rgba(0, 0, 0, 0.6);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  padding: 3px 8px;
+  border-radius: 6px;
+  letter-spacing: 0.02em;
+  pointer-events: none;
 }
 
 
@@ -514,8 +533,8 @@
   padding: 0 1.5rem;
 
   background: var(--surface-toolbar);
-  backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
 
   border-top: 1px solid var(--border-room);
   z-index: 1000;
@@ -544,6 +563,7 @@
   cursor: pointer;
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
   white-space: nowrap;
+  -webkit-user-select: none;
   user-select: none;
 }
 
