@@ -49,6 +49,33 @@ export const fetchSessionParticipants = async (sessionId, baseUrl) => {
 
 export const clearParticipantsCache = () => participantsCache.clear();
 
+// POST /api/sessions/{sessionId}/participants — records that this
+// authenticated user was actually present in this session, so later
+// trace/lineage checks (isAuthorizedHop above) have something real to
+// check hops against. Call this once when a user joins/creates a real
+// meeting room (see useMeetingRoomSession.js) — NOT from any
+// synthetic/test flow, since the backend only accepts a userId matching
+// the caller's own JWT (SessionParticipantService.addParticipant).
+//
+// Best-effort by design: a user's own presence row failing to save
+// shouldn't block them from joining the meeting. Callers should catch
+// and log, not surface this as a blocking error.
+export const registerSessionParticipant = async (sessionId, userId, baseUrl) => {
+  const res = await fetch(`${baseUrl}/api/sessions/${sessionId}/participants`, {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ userId }),
+  });
+  if (!res.ok) {
+    throw new Error(`Registering session participant failed: ${res.status}`);
+  }
+  // Drop any cached (likely empty) participant set for this session so a
+  // trace lookup made later in this same tab sees the fresh row instead
+  // of a stale cached Set from before this user joined.
+  participantsCache.delete(sessionId);
+  return res.json();
+};
+
 /**
  * Builds the verifyHop callback walkChain expects: (entry) => { valid, reason }.
  *

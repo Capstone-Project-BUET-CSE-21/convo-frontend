@@ -7,6 +7,8 @@ import { WS_URL } from "../config/apiConfig";
 import { makeMeetingEntry, fetchServerCredentials, fetchWatermarkConfig } from "./meetingApi";
 import { createDataChannelTransfer } from "./dataChannelTransfer";
 import { createPeerConnectionManager } from "./peerConnectionManager";
+import { registerSessionParticipant } from "../identity/traceVerification";
+import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
 const useMeetingRoomSession = ({
   roomId,
@@ -325,6 +327,14 @@ const useMeetingRoomSession = ({
       pendingAudioTracksRef.current.forEach((track, pid) => manager.attachRemoteAudio(pid, track));
 
       initPlaybackWatermark();
+
+      // Record real presence in this real session, so the trace/lineage
+      // screen's isAuthorizedHop check has something to check hops
+      // against later (see identity/traceVerification.js). Best-effort:
+      // must never block the meeting itself from loading.
+      registerSessionParticipant(roomId, authUser.id, CONFIDENTIALITY_CHAIN_URL).catch((err) => {
+        console.error("Failed to register session participant:", err);
+      });
 
       const token = getAuthToken();
       const wsUrl = `${WS_URL}/ws` + (token ? `?token=${encodeURIComponent(token)}` : "");
