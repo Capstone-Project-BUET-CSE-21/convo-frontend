@@ -127,7 +127,15 @@ export const makeVerifyHop = (contentHash) => async (entry) => {
  * @param {string} baseUrl confidentiality service base URL
  */
 export const makeIsAuthorizedHop = (baseUrl) => async (entry) => {
-  const sessionId = entry.originSessionId ?? entry.sessionId;
+  // Check the session THIS hop actually happened in — not
+  // entry.originSessionId (the chain's root session, inherited by every
+  // downstream hop purely for the trace screen's "(originally signed in
+  // session X)" display note). Using originSessionId here was checking
+  // every hop against the very first meeting in the file's whole history,
+  // rather than the meeting the sender actually shared it in — so a real,
+  // properly-registered forward could never pass this check unless the
+  // sender also happened to be in the file's original founding meeting.
+  const sessionId = entry.sessionId;
   try {
     const participants = await fetchSessionParticipants(sessionId, baseUrl);
     return participants.has(entry.senderId);
