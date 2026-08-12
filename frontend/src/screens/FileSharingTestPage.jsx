@@ -3,37 +3,33 @@ import { useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import "./FileSharingTestPage.css";
 
-import { generateAndStoreKeypair } from "../crypto/keypair";
-import { computeFileHash, computeContentHash } from "../crypto/hashing";
-import { signBlock } from "../crypto/signing";
-import { authHeaders } from "../auth/authFetch";
+import { computeContentHash } from "../crypto/hashing";
+import { fetchChainHistory } from "../pipeline/chainReconstruct";
 import FileTraceScreen from "./FileTraceScreen";
 import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
-// This exercises the real backend + real frontend modules end to end —
-// nothing here is mocked the way PipelineTestPage.jsx's
-// contentHash: "some-content-hash" stub was:
-//   1. registers two real ECDSA keypairs (Anisa's 2.2/2.4)
-//   2. shares the uploaded file as "User A" in Session 1 (root of chain)
-//   3. forwards the SAME file content as "User B" in Session 2,
-//      previousHash pointing at User A's fileHash
-//   4. optionally registers User B as an authorized participant of
-//      Session 2 (session_participants) — skip this to see the
-//      "unauthorized hop" flag actually fire
-//   5. renders FileTraceScreen — the real trace/lineage component — against
-//      the live GET /api/transfer/metadata/history/{contentHash} endpoint
+// Real trace lookup for a file that was actually shared/forwarded through
+// real meetings (real users, real senderIds, real sessions) — as opposed to
+// this page's old behaviour of fabricating a brand-new fake two-hop chain
+// under random senderIds on every run.
 //
-// KNOWN LIMITATION: the confidentiality service now requires every
-// register-key/create-metadata/attach-hash/add-participant call to come
-// from the same authenticated user it's claiming to act as (senderId/
-// userId must match the caller's JWT "uid"). This harness fabricates a
-// fresh random senderId per simulated "user" per run, which can never
-// match the one real logged-in tester's token — so shareOrForward() and
-// registerParticipant() will now get 403s from the real backend. Attaching
-// the current session's token (below) is still correct/harmless, but
-// simulating multiple distinct senders this way is no longer possible
-// without a redesign of this harness (e.g. driving it from multiple real
-// logged-in sessions instead of synthesizing identities).
+// That fabrication is gone. This page now:
+//   1. hashes the uploaded file the same way real transfers do
+//      (computeContentHash — content bytes only, so it matches regardless
+//      of which real transfer produced this exact file)
+//   2. asks the backend for any real history recorded under that hash
+//      (GET /api/transfer/metadata/history/{contentHash} — a read, no
+//      identity/ownership check, so it works for any authenticated caller
+//      tracing a file they legitimately have a copy of)
+//   3. hands the most recent real entry to FileTraceScreen, the same
+//      trace/lineage component used before — but now without fabricated
+//      peerNames, so it resolves real display names via
+//      identity/userLookup.fetchUserDisplayNames instead of always
+//      showing "User A (original sender)" / "User B (forwarded it)".
+//
+// If nothing comes back, that just means this exact file content has never
+// been shared through Convo's real file-sharing flow — there's no history
+// to trace, and this page no longer invents one to fill the gap.
 
 const ArrowIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true" className="fst-arrow">
@@ -50,107 +46,43 @@ const Row = ({ label, value }) => (
 );
 Row.propTypes = { label: PropTypes.string.isRequired, value: PropTypes.node };
 
-// One user's full share/forward step: register key -> POST metadata ->
-// hash + contentHash -> sign -> PATCH.
-async function shareOrForward({ file, fileBuffer, sessionId, previousHash }) {
-  const senderId = crypto.randomUUID();
-  const { privateKey, publicKeyBase64 } = await generateAndStoreKeypair(senderId);
-
-  const keyRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys`, {
-    method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ userId: senderId, publicKey: publicKeyBase64, algorithm: "ECDSA-P256" }),
-  });
-  if (!keyRes.ok) throw new Error(`Key registration failed: ${keyRes.status}`);
-
-  const metaRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata`, {
-    method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({
-      sessionId,
-      senderId,
-      fileName: file.name,
-      fileSize: file.size,
-      mimeType: file.type || "application/octet-stream",
-      previousHash: previousHash ?? null,
-    }),
-  });
-  if (!metaRes.ok) throw new Error(`Metadata request failed: ${metaRes.status}`);
-  const metadata = await metaRes.json();
-
-  const fileHash = await computeFileHash(fileBuffer, metadata);
-  const contentHash = await computeContentHash(fileBuffer);
-  const signature = await signBlock(fileHash, metadata, privateKey);
-
-  const patchRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata/${metadata.transferId}`, {
-    method: "PATCH",
-    headers: authHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ fileHash, signature, contentHash }),
-  });
-  if (!patchRes.ok) throw new Error(`Attaching hash/signature failed: ${patchRes.status}`);
-
-  return { senderId, sessionId, fileHash, contentHash, transferId: metadata.transferId };
-}
-
-async function registerParticipant(sessionId, userId) {
-  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/sessions/${sessionId}/participants`, {
-    method: "POST",
-    headers: authHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ userId }),
-  });
-  if (!res.ok) throw new Error(`Registering participant failed: ${res.status}`);
-  return res.json();
-}
-
 const FileSharingTestPage = () => {
   const navigate = useNavigate();
   const fileRef = useRef(null);
 
   const [file, setFile] = useState(null);
-  const [authorizeForward, setAuthorizeForward] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [chain, setChain] = useState(null); // { contentHash, startFileHash, peerNames, sessions }
+  const [notFound, setNotFound] = useState(false);
+  const [chain, setChain] = useState(null); // { contentHash, startFileHash, hopCount }
 
-  const runSimulation = async () => {
+  const runTrace = async () => {
     if (!file) return;
     setLoading(true);
     setError(null);
+    setNotFound(false);
     setChain(null);
 
     try {
       const fileBuffer = await file.arrayBuffer();
-      const sessionA = crypto.randomUUID();
-      const sessionB = crypto.randomUUID();
+      const contentHash = await computeContentHash(fileBuffer);
 
-      const hopA = await shareOrForward({ file, fileBuffer, sessionId: sessionA, previousHash: null });
-      const hopB = await shareOrForward({
-        file,
-        fileBuffer,
-        sessionId: sessionB,
-        previousHash: hopA.fileHash,
-      });
+      // findByContentHashOrderByTimestampAsc on the server (see
+      // pipeline/chainReconstruct.js's fetchChainHistory) — entries come
+      // back oldest first, so the last element is the most recent real
+      // share/forward of this exact file content.
+      const entries = await fetchChainHistory(contentHash, CONFIDENTIALITY_CHAIN_URL);
 
-      if (authorizeForward) {
-        await registerParticipant(sessionB, hopB.senderId);
+      if (!entries || entries.length === 0) {
+        setNotFound(true);
+        return;
       }
-      // User A is always registered as a participant of their own session
-      // so the root hop shows as authorized regardless of the checkbox.
-      await registerParticipant(sessionA, hopA.senderId);
 
-      const peerNames = new Map([
-        [hopA.senderId, "User A (original sender)"],
-        [hopB.senderId, "User B (forwarded it)"],
-      ]);
-
+      const latest = entries[entries.length - 1];
       setChain({
-        contentHash: hopA.contentHash,
-        startFileHash: hopB.fileHash,
-        peerNames,
-        sessions: [
-          { label: "Session 1 (origin)", id: sessionA, senderId: hopA.senderId },
-          { label: "Session 2 (forward)", id: sessionB, senderId: hopB.senderId },
-        ],
+        contentHash,
+        startFileHash: latest.fileHash,
+        hopCount: entries.length,
       });
     } catch (err) {
       setError(err.message);
@@ -180,9 +112,9 @@ const FileSharingTestPage = () => {
         <div className="fst-card-header">
           <h1 className="fst-title">File Sharing &amp; Trace Test</h1>
           <p className="fst-subtitle">
-            Upload a file. This simulates it being shared by one user and then forwarded by a
-            second user into a different session, then traces the real chain history back
-            through every user it passed through.
+            Upload a file you actually sent or received through Convo. This looks up its
+            real transfer history — the real users and real sessions it actually passed
+            through — and traces the chain back to its original share.
           </p>
         </div>
 
@@ -205,22 +137,10 @@ const FileSharingTestPage = () => {
               {file ? file.name : "Choose a file"}
             </button>
           </div>
-
-          <label className="fst-checkbox">
-            <input
-              type="checkbox"
-              checked={authorizeForward}
-              onChange={(e) => setAuthorizeForward(e.target.checked)}
-            />
-            Register User B as an authorized participant of Session 2
-            <span className="fst-checkbox-hint">
-              (uncheck to see the &quot;unauthorized hop&quot; flag fire instead)
-            </span>
-          </label>
         </div>
 
-        <button className="fst-btn" onClick={runSimulation} disabled={loading || !file}>
-          {loading ? "Running…" : "Share, forward, and trace"}
+        <button className="fst-btn" onClick={runTrace} disabled={loading || !file}>
+          {loading ? "Tracing…" : "Trace this file's history"}
           {!loading && <ArrowIcon />}
         </button>
 
@@ -231,23 +151,27 @@ const FileSharingTestPage = () => {
           </div>
         )}
 
+        {notFound && !error && (
+          <div className="fst-result">
+            <div className="fst-result-title">No history found</div>
+            <p className="fst-result-error" style={{ color: "var(--ink-muted, #6b6a7a)" }}>
+              This exact file content has no record in Convo&apos;s file-sharing history yet.
+              Share or forward it through a real meeting first, then trace it here.
+            </p>
+          </div>
+        )}
+
         {chain && (
           <div className="fst-chain-summary">
             <div className="fst-divider" />
-            <div className="fst-scores-label">Simulated hops</div>
-            {chain.sessions.map((s) => (
-              <div key={s.id} className="fst-row">
-                <span className="fst-row-label">{s.label}</span>
-                <span className="fst-row-value">{s.id.slice(0, 8)}…</span>
-              </div>
-            ))}
+            <div className="fst-scores-label">Real history found</div>
+            <Row label="Hops on record" value={chain.hopCount} />
             <Row label="Content hash" value={`${chain.contentHash.slice(0, 16)}…`} />
 
             <div className="fst-divider" />
             <FileTraceScreen
               contentHash={chain.contentHash}
               startFileHash={chain.startFileHash}
-              peerNames={chain.peerNames}
             />
           </div>
         )}
