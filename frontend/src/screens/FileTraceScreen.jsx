@@ -5,7 +5,8 @@ import "./FileTraceScreen.css";
 import { traceChain } from "../pipeline/chainReconstruct";
 import { makeVerifyHop, makeIsAuthorizedHop } from "../identity/traceVerification";
 import { formatRelativeTime } from "../identity/senderIdentity";
-import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
+import { fetchUserDisplayNames } from "../identity/userLookup";
+import { CONFIDENTIALITY_CHAIN_URL, BACKEND_URL } from "../config/apiConfig";
 
 // 5.3 — The trace/lineage screen: meeting-by-meeting, person-by-person,
 // with "chain broken here" and "unauthorized person here" rendered as
@@ -17,6 +18,12 @@ import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 // @param {Map}    [peerNames]   peerId -> display name, if the caller has one handy
 const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
   const [state, setState] = useState({ status: "loading", hops: [], stopReason: null, error: null });
+  // Names resolved from convo-backend for senderIds that peerNames doesn't
+  // already know (i.e. hops from meetings the viewer wasn't part of).
+  // Kept separate from peerNames rather than merged into it so a caller's
+  // live-signaling name (more likely to be fresh/exactly what they expect)
+  // always wins if both sources somehow have an entry for the same id.
+  const [resolvedNames, setResolvedNames] = useState(new Map());
 
   const verifyHop = useMemo(() => makeVerifyHop(contentHash), [contentHash]);
   const isAuthorizedHop = useMemo(() => makeIsAuthorizedHop(CONFIDENTIALITY_CHAIN_URL), []);
@@ -26,6 +33,7 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
 
     const run = async () => {
       setState({ status: "loading", hops: [], stopReason: null, error: null });
+      setResolvedNames(new Map());
       try {
         const { hops, stopReason } = await traceChain(
           contentHash,
@@ -35,6 +43,23 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
         );
         if (!cancelled) {
           setState({ status: "done", hops, stopReason, error: null });
+        }
+
+        // Best-effort: resolve real display names for every sender this
+        // trace touched. A failure here shouldn't block rendering the
+        // chain itself — hops just fall back to a truncated id, same as
+        // before this lookup existed.
+        const senderIds = hops.map((hop) => hop.entry?.senderId).filter(Boolean);
+        const unknownIds = senderIds.filter((id) => !peerNames?.get?.(id));
+        if (unknownIds.length > 0) {
+          try {
+            const names = await fetchUserDisplayNames(unknownIds, BACKEND_URL);
+            if (!cancelled) {
+              setResolvedNames(names);
+            }
+          } catch (err) {
+            console.error("Resolving sender names failed:", err);
+          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -47,9 +72,10 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
     return () => {
       cancelled = true;
     };
-  }, [contentHash, startFileHash, verifyHop, isAuthorizedHop]);
+  }, [contentHash, startFileHash, verifyHop, isAuthorizedHop, peerNames]);
 
-  const nameFor = (userId) => peerNames?.get?.(userId) || `User ${String(userId).slice(0, 8)}`;
+  const nameFor = (userId) =>
+    peerNames?.get?.(userId) || resolvedNames.get(userId) || `User ${String(userId).slice(0, 8)}`;
 
   if (state.status === "loading") {
     return <div className="file-trace-screen file-trace-screen--loading">Tracing file history…</div>;
