@@ -150,9 +150,9 @@ export async function prepareFileForTransfer(file, sessionCtx = {}) {
       encryptionKeys,
     });
     emitStage(sessionCtx, { phase: "ready", label: "Ready to send", progress: 100 });
-    return encrypted;
+    return { wrappedBuffer: encrypted, contentHash };
   }
 
   emitStage(sessionCtx, { phase: "ready", label: "Ready to send", progress: 100 });
-  return wrapped;
+  return { wrappedBuffer: wrapped, contentHash };
 }

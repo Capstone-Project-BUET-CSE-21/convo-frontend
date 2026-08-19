@@ -12,9 +12,16 @@ const formatBytes = (bytes) => {
 // `provenance` (optional — only present on received files that went through
 // the verification pipeline; the sender's own bubble never has one) is the
 // result shape from identity/verifyIncomingTransfer.js:
-//   { valid, reason, senderName, sessionName, timestamp }
+//   { valid, reason, senderName, sessionName, timestamp, contentHash }
 // container per manual §5.2 Task 2.
-const ChatFileBubble = ({ fileUrl, fileName, fileType, fileSize, provenance }) => {
+//
+// `contentHash` + `onDownload` back the download-tracking feature. No
+// separate download button: the image/doc links below already save the
+// file to disk when clicked (via their `download` attribute) — the
+// tracked event just piggybacks on that same click through onClick,
+// instead of bolting on dedicated UI for it. Video has no equivalent
+// click-to-save link today, so it isn't tracked yet.
+const ChatFileBubble = ({ fileUrl, fileName, fileType, fileSize, provenance, contentHash, onDownload }) => {
   console.log("ChatFileBubble props:", { fileName, fileType, fileSize });
   const badge = provenance && (
     <ProvenanceBadge
@@ -26,6 +33,8 @@ const ChatFileBubble = ({ fileUrl, fileName, fileType, fileSize, provenance }) =
     />
   );
 
+  const handleDownloadClick = () => onDownload?.(contentHash);
+
   if (fileType?.startsWith("image/")) {
     return (
       <div className="chat-file-wrapper">
@@ -35,6 +44,7 @@ const ChatFileBubble = ({ fileUrl, fileName, fileType, fileSize, provenance }) =
           download={fileName}
           target="_blank"
           rel="noreferrer"
+          onClick={handleDownloadClick}
         >
           <img src={fileUrl} alt={fileName} className="chat-file__thumb" loading="lazy" />
         </a>
@@ -62,6 +72,7 @@ const ChatFileBubble = ({ fileUrl, fileName, fileType, fileSize, provenance }) =
         download={fileName}
         target="_blank"
         rel="noreferrer"
+        onClick={handleDownloadClick}
       >
         <span className="chat-file__icon" aria-hidden="true">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -98,10 +109,14 @@ ChatFileBubble.propTypes = {
     sessionName: PropTypes.string,
     timestamp: PropTypes.string,
   }),
+  contentHash: PropTypes.string,
+  onDownload: PropTypes.func,
 };
 
 ChatFileBubble.defaultProps = {
   provenance: null,
+  contentHash: null,
+  onDownload: null,
 };
 
 export default ChatFileBubble;

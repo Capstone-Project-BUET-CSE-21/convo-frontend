@@ -216,7 +216,7 @@ const ChatFileShare = forwardRef(function ChatFileShare(
         throw new Error("No private key found for the current user");
       }
 
-      const wrappedBuffer = await prepareFileForTransfer(file, sessionCtx);
+      const { wrappedBuffer, contentHash } = await prepareFileForTransfer(file, sessionCtx);
       const totalChunks = Math.ceil(wrappedBuffer.byteLength / DATA_CHANNEL_CHUNK_PAYLOAD_BYTES) || 1;
       meta.totalChunks = totalChunks;
 
@@ -256,6 +256,7 @@ const ChatFileShare = forwardRef(function ChatFileShare(
         fileType: file.type || "application/octet-stream",
         fileSize: file.size,
         time,
+        contentHash,
       });
     } catch (err) {
       if (err instanceof ProvenanceLinkError) {

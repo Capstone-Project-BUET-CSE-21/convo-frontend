@@ -217,6 +217,7 @@ export const createDataChannelTransfer = ({
             time: transfer.meta.time,
             isMine: false,
             provenance,
+            contentHash: provenance.contentHash,
           },
         ]);
 

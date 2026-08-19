@@ -52,9 +52,9 @@ export const verifyIncomingTransfer = async ({
   // computeContentHash() and PATCHes to the backend — it's stable across
   // resends/re-encryptions and independent of this block's own metadata,
   // so it's the correct key for a cross-session lookup.
-  let priorBlock, chainBroken;
+  let priorBlock, chainBroken, contentHash;
   try {
-    const contentHash = await computeContentHash(fileBytes);
+    contentHash = await computeContentHash(fileBytes);
     ({ priorBlock, chainBroken } = await resolvePriorBlockDurable(
       contentHash,
       signedBlock.metadata.previousHash,
@@ -98,5 +98,6 @@ export const verifyIncomingTransfer = async ({
     senderName,
     sessionName: sessionName ?? null,
     timestamp: signedBlock.metadata.timestamp,
+    contentHash,
   };
 };

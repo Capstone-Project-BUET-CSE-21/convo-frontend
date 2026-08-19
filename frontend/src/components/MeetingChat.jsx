@@ -3,8 +3,10 @@ import PropTypes from "prop-types";
 import "./MeetingChat.css";
 import ChatFileShare from "./ChatFileShare";
 import ChatFileBubble from "./ChatFileBubble";
+import { recordFileDownload } from "../identity/fileDownloadTracking";
 
 const EVERYONE = "__everyone__";
+const CONFIDENTIALITY_API_BASE_URL = import.meta.env.VITE_CONFIDENTIALITY_CHAIN_API_URL;
 
 const formatStagedSize = (bytes) => {
   if (bytes == null) return "";
@@ -20,6 +22,22 @@ const MeetingChat = ({ isOpen, onClose, wsRef, dataChannelsRef, roomId, peers, p
   const bottomRef = useRef(null);
   const inputRef = useRef(null);
   const fileShareRef = useRef(null);
+
+  // Fires only when the bubble's explicit Download button is clicked (not
+  // on preview clicks) — records the event against the confidentiality
+  // chain service. Best-effort: the user's actual file save (handled
+  // inside ChatFileBubble itself) never waits on this.
+  const handleFileDownload = (contentHash) => {
+    if (!contentHash) return;
+    recordFileDownload({
+      sessionId: roomId,
+      userId: currentUser.id,
+      contentHash,
+      baseUrl: CONFIDENTIALITY_API_BASE_URL,
+    }).catch((err) => {
+      console.error("Failed to record file download:", err);
+    });
+  };
 
   // ── Staged file (Messenger-style tray) ────────────────────────────────────
   // Attaching a file no longer sends it immediately — it sits here in the
@@ -296,6 +314,8 @@ const MeetingChat = ({ isOpen, onClose, wsRef, dataChannelsRef, roomId, peers, p
                       fileType={m.fileType}
                       fileSize={m.fileSize}
                       provenance={m.provenance}
+                      contentHash={m.contentHash}
+                      onDownload={handleFileDownload}
                     />
                   ) : (
                     <div className="chat-bubble__text">{m.text}</div>
