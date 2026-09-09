@@ -55,6 +55,41 @@
 }
 
 
+/* ── "Audio watermarked" one-time notice ── */
+
+.meeting-watermark-notice {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--surface-toolbar);
+  border: 1px solid var(--border-room);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  padding: 10px 18px;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  animation: watermarkNoticeIn 0.2s var(--ease-out);
+  pointer-events: none;
+}
+
+@keyframes watermarkNoticeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -8px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+
 /* ============================================================
    Header
    ============================================================ */
@@ -581,6 +616,17 @@
 
 .toolbar-btn:active {
   transform: scale(0.95);
+}
+
+.toolbar-btn:disabled {
+  color: rgba(255, 255, 255, 0.3);
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.toolbar-btn:disabled:hover {
+  background: transparent;
+  border-color: transparent;
 }
 
 .toolbar-btn__label {

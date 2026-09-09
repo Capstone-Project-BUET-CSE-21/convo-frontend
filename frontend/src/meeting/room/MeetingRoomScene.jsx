@@ -10,16 +10,14 @@ const MeetingRoomScene = ({
   peerConnectionStates,
   isAudioEnabled,
   isVideoEnabled,
-  isPlaybackReady,
   localVideoRef,
   remoteVideosRef,
 }) => {
   const totalParticipants = peers.length + 1;
   const gridDataAttr = { "data-tile-count": totalParticipants };
-  // Fail-closed: even with the camera on, don't render video until the
-  // watermarked playback path is confirmed live (see useMeetingRoomSession's
-  // isPlaybackReady).
-  const isLocalVideoVisible = isVideoEnabled && isPlaybackReady;
+  // Video renders as soon as the camera track is on — it's no longer gated on
+  // the audio watermark pipeline (that only gates the in-app recorder now).
+  const isLocalVideoVisible = isVideoEnabled;
 
   return (
     <main className="meeting-stage">
@@ -50,7 +48,6 @@ const MeetingRoomScene = ({
             peerId={peerId}
             peerName={peerNames.get(peerId) || "Guest"}
             remoteVideosRef={remoteVideosRef}
-            isPlaybackReady={isPlaybackReady}
             isVideoEnabled={peerVideoStates.get(peerId) !== false}
             isAudioEnabled={peerAudioStates.get(peerId) !== false}
             connectionState={peerConnectionStates.get(peerId)}
@@ -78,7 +75,6 @@ MeetingRoomScene.propTypes = {
   peerConnectionStates: PropTypes.instanceOf(Map).isRequired,
   isAudioEnabled: PropTypes.bool.isRequired,
   isVideoEnabled: PropTypes.bool.isRequired,
-  isPlaybackReady: PropTypes.bool.isRequired,
   localVideoRef: PropTypes.shape({ current: PropTypes.any }).isRequired,
   remoteVideosRef: PropTypes.shape({ current: PropTypes.any }).isRequired,
 };

@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import "./MeetingRoom.css";
 import MeetingChat from "../components/MeetingChat";
@@ -28,7 +28,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         copiedLink,
         isChatOpen,
         hasUnreadChat,
-        isPlaybackReady,
+        isWatermarkActive,
         chatMessages,
         localVideoRef: sessionLocalVideoRef,
         remoteVideosRef: sessionRemoteVideosRef,
@@ -59,9 +59,35 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         remoteVideosRef,
     });
 
+    // One-time popup the moment audio watermarking comes online, so the user
+    // knows why the Record button just became available. Detecting the
+    // false->true transition is done during render (React's documented
+    // pattern for "adjust state when a prop changes"), not inside an effect
+    // body, to avoid a synchronous setState-in-effect cascade; the effect
+    // below only arms a timeout, which is the kind of "react to an external
+    // timer callback" work effects are for.
+    const [prevWatermarkActive, setPrevWatermarkActive] = useState(isWatermarkActive);
+    const [showWatermarkNotice, setShowWatermarkNotice] = useState(false);
+    if (isWatermarkActive !== prevWatermarkActive) {
+        setPrevWatermarkActive(isWatermarkActive);
+        if (isWatermarkActive) setShowWatermarkNotice(true);
+    }
+
+    useEffect(() => {
+        if (!showWatermarkNotice) return;
+        const timer = setTimeout(() => setShowWatermarkNotice(false), 4000);
+        return () => clearTimeout(timer);
+    }, [showWatermarkNotice]);
+
     return (
         <div className="meeting-room">
             <audio ref={playbackAudioRef} autoPlay hidden />
+
+            {showWatermarkNotice && (
+                <div className="meeting-watermark-notice" role="status" aria-live="polite">
+                    Your audio is being watermarked
+                </div>
+            )}
 
             <header className="meeting-header">
                 <div className="meeting-header__room-info">
@@ -117,7 +143,6 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
                 peerConnectionStates={peerConnectionStates}
                 isAudioEnabled={isAudioEnabled}
                 isVideoEnabled={isVideoEnabled}
-                isPlaybackReady={isPlaybackReady}
                 localVideoRef={sessionLocalVideoRef}
                 remoteVideosRef={sessionRemoteVideosRef}
             />
@@ -127,6 +152,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
                 isVideoEnabled={isVideoEnabled}
                 isRecording={isRecording}
                 hasRecording={hasRecording}
+                isRecordingDisabled={!isWatermarkActive && !isRecording}
                 isChatOpen={isChatOpen}
                 hasUnreadChat={hasUnreadChat}
                 onToggleAudio={toggleAudio}

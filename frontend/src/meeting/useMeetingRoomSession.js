@@ -36,12 +36,16 @@ const useMeetingRoomSession = ({
   const [copiedLink, setCopiedLink] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [hasUnreadChat, setHasUnreadChat] = useState(false);
-  // Fail-closed gate: video (local + remote) stays hidden until the
-  // watermarked playback path is actually live, so a screen recording can
-  // never capture video without the traceable watermarked audio alongside
-  // it. Only the success path in initPlaybackWatermark sets this true —
-  // the unwatermarked fallback path deliberately does not.
-  const [isPlaybackReady, setIsPlaybackReady] = useState(false);
+  // True once the watermarked playback path is actually live. Video is shown
+  // as soon as it renders regardless of this flag, and audio is never gated by
+  // it either (the fallback path in initPlaybackWatermark keeps audio flowing
+  // unwatermarked while this is false). This flag's only remaining job is the
+  // in-app recorder: recording depends on the watermark for its traceability
+  // guarantee, so the Record button stays disabled until this flips true, at
+  // which point the UI also surfaces a one-time "Your audio is being
+  // watermarked" notice. Only the success path in initPlaybackWatermark sets
+  // this true — the unwatermarked fallback path deliberately does not.
+  const [isWatermarkActive, setIsWatermarkActive] = useState(false);
 
   const serverRef = useRef(null);
   const wsRef = useRef(null);
@@ -148,7 +152,7 @@ const useMeetingRoomSession = ({
     playbackAudioContextRef.current = null;
     playbackWorkletNodeRef.current = null;
     playbackStreamRef.current = null;
-    setIsPlaybackReady(false);
+    setIsWatermarkActive(false);
 
     if (playbackAudioRef.current) {
       playbackAudioRef.current.srcObject = null;
@@ -191,12 +195,12 @@ const useMeetingRoomSession = ({
         playbackAudioRef.current.srcObject = result.stream;
         playbackAudioRef.current.play?.().catch(() => { });
       }
-      setIsPlaybackReady(true);
+      setIsWatermarkActive(true);
     } catch (err) {
       console.error("Error building playback watermark output:", err);
-      // Fail closed: fall back to unwatermarked audio so the call isn't
-      // silent, but do NOT mark playback ready — video stays hidden since
-      // it would otherwise be recordable without the traceable watermark.
+      // Fall back to unwatermarked audio so the call isn't silent, but do NOT
+      // mark the watermark active — the Record button stays disabled since a
+      // recording made here wouldn't carry the traceable watermark.
       if (playbackAudioRef.current && localMixBusRef.current) {
         playbackAudioRef.current.srcObject = localMixBusRef.current.mixedStream;
         playbackAudioRef.current.play?.().catch(() => { });
@@ -499,7 +503,7 @@ const useMeetingRoomSession = ({
     copiedLink,
     isChatOpen,
     hasUnreadChat,
-    isPlaybackReady,
+    isWatermarkActive,
     wsRef,
     dataChannelsRef,
     localVideoRef,

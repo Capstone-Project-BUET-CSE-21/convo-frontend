@@ -54,17 +54,14 @@ const CONNECTION_BADGE = {
   closed: "Disconnected",
 };
 
-export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef, isPlaybackReady, isVideoEnabled, isAudioEnabled, connectionState }) => {
+export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef, isVideoEnabled, isAudioEnabled, connectionState }) => {
   const videoRef = useRef(null);
   // Tracks whether the peer's stream currently carries a video track at
   // all. NOTE: MediaStreamTrack.enabled is sender-local only and is never
   // signaled over the wire — a remote track stays enabled=true even while
   // the sending peer has their camera toggled off — so camera-off state is
   // carried separately via isVideoEnabled (signaled over the WS channel,
-  // see useMeetingRoomSession's "video-state" messages). Rendering also
-  // requires isPlaybackReady (fail-closed gate on watermarked playback),
-  // kept as a separate prop so a later isPlaybackReady flip is picked up
-  // immediately without waiting on a track event to re-run this.
+  // see useMeetingRoomSession's "video-state" messages).
   const [hasTrackVideo, setHasTrackVideo] = useState(false);
 
   useEffect(() => {
@@ -118,7 +115,7 @@ export const RemoteParticipantTile = ({ peerId, peerName, remoteVideosRef, isPla
     };
   }, [peerId, remoteVideosRef]);
 
-  const hasVideo = hasTrackVideo && isVideoEnabled && isPlaybackReady;
+  const hasVideo = hasTrackVideo && isVideoEnabled;
   const connectionBadge = CONNECTION_BADGE[connectionState];
 
   return (
@@ -155,7 +152,6 @@ RemoteParticipantTile.propTypes = {
   remoteVideosRef: PropTypes.shape({
     current: PropTypes.instanceOf(Map),
   }).isRequired,
-  isPlaybackReady: PropTypes.bool.isRequired,
   isVideoEnabled: PropTypes.bool.isRequired,
   isAudioEnabled: PropTypes.bool.isRequired,
   connectionState: PropTypes.string,
