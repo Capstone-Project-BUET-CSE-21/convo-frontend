@@ -78,25 +78,33 @@ export const createLocalMixBus = () => {
 export const createWatermarkedPlaybackStream = async ({ mixedStream, config }) => {
   const audioContext = new AudioContext();
 
-  if (audioContext.state === 'suspended') {
-    await audioContext.resume();
+  // Callers may retry this repeatedly while the watermark backend is still
+  // starting up, so a partial failure here must not leak the AudioContext it
+  // already opened.
+  try {
+    if (audioContext.state === 'suspended') {
+      await audioContext.resume();
+    }
+
+    await audioContext.audioWorklet.addModule('/audio-watermark/audio-processor.worklet.js');
+
+    const sourceNode = audioContext.createMediaStreamSource(mixedStream);
+
+    const workletNode = new AudioWorkletNode(audioContext, 'audio-processor', {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [1],
+      processorOptions: { ...config, sampleRate: audioContext.sampleRate }
+    });
+
+    const destination = audioContext.createMediaStreamDestination();
+
+    sourceNode.connect(workletNode);
+    workletNode.connect(destination);
+
+    return { stream: destination.stream, audioContext, workletNode };
+  } catch (err) {
+    audioContext.close();
+    throw err;
   }
-
-  await audioContext.audioWorklet.addModule('/audio-watermark/audio-processor.worklet.js');
-
-  const sourceNode = audioContext.createMediaStreamSource(mixedStream);
-
-  const workletNode = new AudioWorkletNode(audioContext, 'audio-processor', {
-    numberOfInputs: 1,
-    numberOfOutputs: 1,
-    outputChannelCount: [1],
-    processorOptions: { ...config, sampleRate: audioContext.sampleRate }
-  });
-
-  const destination = audioContext.createMediaStreamDestination();
-
-  sourceNode.connect(workletNode);
-  workletNode.connect(destination);
-
-  return { stream: destination.stream, audioContext, workletNode };
 };

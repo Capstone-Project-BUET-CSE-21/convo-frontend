@@ -10,6 +10,11 @@ import { createPeerConnectionManager } from "./peerConnectionManager";
 import { registerSessionParticipant } from "../identity/traceVerification";
 import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
+// How long to wait before retrying the watermark backend after it fails, so a
+// participant who joined before it came online still gets activated once it
+// does, instead of being stuck unwatermarked for the rest of the call.
+const WATERMARK_RETRY_INTERVAL_MS = 5000;
+
 const useMeetingRoomSession = ({
   roomId,
   command,
@@ -46,6 +51,12 @@ const useMeetingRoomSession = ({
   // watermarked" notice. Only the success path in initPlaybackWatermark sets
   // this true — the unwatermarked fallback path deliberately does not.
   const [isWatermarkActive, setIsWatermarkActive] = useState(false);
+  // Drives the "Your audio is being watermarked" popup. Fires once when the
+  // pipeline first activates (covering everyone already in the mix at that
+  // point) and again for each subsequent peer whose audio joins the mix while
+  // the pipeline is already live (see peerConnectionManager's
+  // onRemoteAudioActivated).
+  const [showWatermarkNotice, setShowWatermarkNotice] = useState(false);
 
   const serverRef = useRef(null);
   const wsRef = useRef(null);
@@ -78,16 +89,35 @@ const useMeetingRoomSession = ({
   // a track is never silently dropped — the cause of "I can see them but can't
   // hear them" while their video renders fine.
   const pendingAudioTracksRef = useRef(new Map());
+  // Retries initPlaybackWatermark on a timer while the watermark backend isn't
+  // reachable yet, so a participant who joined before it came online still
+  // gets activated (and notified) once it does.
+  const watermarkRetryTimerRef = useRef(null);
+  const watermarkNoticeTimerRef = useRef(null);
 
   // Live mirrors of reactive values the once-constructed helper modules need to
   // read at event time (not construction time): the latest peer names for file
-  // provenance display, and the current mute/camera flags for offer payloads.
+  // provenance display, the current mute/camera flags for offer payloads, and
+  // whether the watermark pipeline is live (so a newly-attached peer's audio
+  // can be told apart from one attached before the pipeline existed).
   const peerNamesRef = useRef(peerNames);
   const mediaFlagsRef = useRef({ audio: isAudioEnabled, video: isVideoEnabled });
+  const isWatermarkActiveRef = useRef(isWatermarkActive);
   useEffect(() => { peerNamesRef.current = peerNames; }, [peerNames]);
   useEffect(() => {
     mediaFlagsRef.current = { audio: isAudioEnabled, video: isVideoEnabled };
   }, [isAudioEnabled, isVideoEnabled]);
+  useEffect(() => { isWatermarkActiveRef.current = isWatermarkActive; }, [isWatermarkActive]);
+
+  // Shows the notice for ~4s. Only ever called from event handlers/async
+  // callbacks (never synchronously in an effect body), so this is safe to call
+  // straight from initPlaybackWatermark's success path and from the peer
+  // manager's onRemoteAudioActivated callback.
+  const triggerWatermarkNotice = () => {
+    setShowWatermarkNotice(true);
+    if (watermarkNoticeTimerRef.current) clearTimeout(watermarkNoticeTimerRef.current);
+    watermarkNoticeTimerRef.current = setTimeout(() => setShowWatermarkNotice(false), 4000);
+  };
 
   const {
     isRecording,
@@ -136,6 +166,8 @@ const useMeetingRoomSession = ({
       localMixBusRef,
       pendingAudioTracksRef,
       mediaFlagsRef,
+      isWatermarkActiveRef,
+      onRemoteAudioActivated: triggerWatermarkNotice,
       setupDataChannel,
       setPeers,
       setPeerNames,
@@ -180,6 +212,9 @@ const useMeetingRoomSession = ({
   };
 
   const initPlaybackWatermark = async () => {
+    // The meeting may already have been left by the time a retry fires.
+    if (!localMixBusRef.current) return;
+
     try {
       const config = await fetchWatermarkConfig({ roomId, userId: authUser.id });
       const result = await createWatermarkedPlaybackStream({
@@ -196,6 +231,11 @@ const useMeetingRoomSession = ({
         playbackAudioRef.current.play?.().catch(() => { });
       }
       setIsWatermarkActive(true);
+      // Covers everyone whose audio is already mixed in at this moment; any
+      // peer who joins afterward is notified individually as their audio
+      // attaches to the (now-active) pipeline — see peerConnectionManager's
+      // onRemoteAudioActivated.
+      triggerWatermarkNotice();
     } catch (err) {
       console.error("Error building playback watermark output:", err);
       // Fall back to unwatermarked audio so the call isn't silent, but do NOT
@@ -205,6 +245,13 @@ const useMeetingRoomSession = ({
         playbackAudioRef.current.srcObject = localMixBusRef.current.mixedStream;
         playbackAudioRef.current.play?.().catch(() => { });
       }
+      // The watermark backend may simply not be up yet — keep retrying in the
+      // background until it succeeds (or we leave), instead of leaving this
+      // participant unwatermarked, unable to record, and never notified for
+      // the rest of the call.
+      watermarkRetryTimerRef.current = setTimeout(() => {
+        initPlaybackWatermark();
+      }, WATERMARK_RETRY_INTERVAL_MS);
     }
   };
 
@@ -227,6 +274,14 @@ const useMeetingRoomSession = ({
     if (reconcileTimerRef.current) {
       clearInterval(reconcileTimerRef.current);
       reconcileTimerRef.current = null;
+    }
+    if (watermarkRetryTimerRef.current) {
+      clearTimeout(watermarkRetryTimerRef.current);
+      watermarkRetryTimerRef.current = null;
+    }
+    if (watermarkNoticeTimerRef.current) {
+      clearTimeout(watermarkNoticeTimerRef.current);
+      watermarkNoticeTimerRef.current = null;
     }
 
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -475,6 +530,14 @@ const useMeetingRoomSession = ({
         clearInterval(reconcileTimerRef.current);
         reconcileTimerRef.current = null;
       }
+      if (watermarkRetryTimerRef.current) {
+        clearTimeout(watermarkRetryTimerRef.current);
+        watermarkRetryTimerRef.current = null;
+      }
+      if (watermarkNoticeTimerRef.current) {
+        clearTimeout(watermarkNoticeTimerRef.current);
+        watermarkNoticeTimerRef.current = null;
+      }
       stopRecording();
       closePlaybackOutput();
       localMixBusRef.current?.close();
@@ -504,6 +567,7 @@ const useMeetingRoomSession = ({
     isChatOpen,
     hasUnreadChat,
     isWatermarkActive,
+    showWatermarkNotice,
     wsRef,
     dataChannelsRef,
     localVideoRef,

@@ -21,6 +21,15 @@ export const createPeerConnectionManager = ({
   // A ref holding { audio, video } — the current local mute/camera flags, read
   // live so an offer/answer advertises the state at negotiation time.
   mediaFlagsRef,
+  // A ref holding whether the local watermark pipeline is already live, read at
+  // attach time to tell "this peer's audio joined an already-watermarked mix"
+  // (notify now) apart from "joined before the pipeline existed" (the
+  // pipeline's own activation notifies once for everyone already mixed in).
+  isWatermarkActiveRef,
+  // Called the first time a given peer's audio is successfully mixed in while
+  // the watermark pipeline is already active, so the UI can surface "Your
+  // audio is being watermarked" for that participant's join.
+  onRemoteAudioActivated,
   setupDataChannel,
   setPeers,
   setPeerNames,
@@ -47,6 +56,11 @@ export const createPeerConnectionManager = ({
     return s === "new" || s === "connecting" || s === "connected" || s === "disconnected";
   };
 
+  // Peers whose audio has already triggered the "being watermarked" notice —
+  // guards against re-notifying the same participant on every reconnect/retry
+  // that re-attaches their track.
+  const notifiedAudioPeers = new Set();
+
   // Route a remote peer's audio track into the shared mix bus so it's audible.
   // The old code did `localMixBusRef.current?.addSource(...)`, which silently
   // dropped the track whenever the bus wasn't ready at that instant — the cause
@@ -65,6 +79,16 @@ export const createPeerConnectionManager = ({
       mixBus.audioContext?.resume?.().catch(() => { });
       mixBus.addSource(peerId, track);
       pendingAudioTracksRef.current.delete(peerId);
+
+      // If the watermark pipeline isn't live yet, this peer's audio starts
+      // getting watermarked retroactively once it activates — that single
+      // activation event (see initPlaybackWatermark) covers them, so nothing
+      // to notify here. If it's already live, though, their audio is being
+      // watermarked from this exact moment, so notify for their join.
+      if (isWatermarkActiveRef?.current && !notifiedAudioPeers.has(peerId)) {
+        notifiedAudioPeers.add(peerId);
+        onRemoteAudioActivated?.(peerId);
+      }
     } catch (err) {
       console.error(`Failed to attach remote audio for ${peerId}, will retry:`, err);
       pendingAudioTracksRef.current.set(peerId, track);

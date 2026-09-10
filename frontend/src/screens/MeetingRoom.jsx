@@ -1,5 +1,5 @@
 import PropTypes from "prop-types";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { useParams } from "react-router-dom";
 import "./MeetingRoom.css";
 import MeetingChat from "../components/MeetingChat";
@@ -29,6 +29,7 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         isChatOpen,
         hasUnreadChat,
         isWatermarkActive,
+        showWatermarkNotice,
         chatMessages,
         localVideoRef: sessionLocalVideoRef,
         remoteVideosRef: sessionRemoteVideosRef,
@@ -58,26 +59,6 @@ const MeetingRoom = ({ meetingRoomAttributes }) => {
         localVideoRef,
         remoteVideosRef,
     });
-
-    // One-time popup the moment audio watermarking comes online, so the user
-    // knows why the Record button just became available. Detecting the
-    // false->true transition is done during render (React's documented
-    // pattern for "adjust state when a prop changes"), not inside an effect
-    // body, to avoid a synchronous setState-in-effect cascade; the effect
-    // below only arms a timeout, which is the kind of "react to an external
-    // timer callback" work effects are for.
-    const [prevWatermarkActive, setPrevWatermarkActive] = useState(isWatermarkActive);
-    const [showWatermarkNotice, setShowWatermarkNotice] = useState(false);
-    if (isWatermarkActive !== prevWatermarkActive) {
-        setPrevWatermarkActive(isWatermarkActive);
-        if (isWatermarkActive) setShowWatermarkNotice(true);
-    }
-
-    useEffect(() => {
-        if (!showWatermarkNotice) return;
-        const timer = setTimeout(() => setShowWatermarkNotice(false), 4000);
-        return () => clearTimeout(timer);
-    }, [showWatermarkNotice]);
 
     return (
         <div className="meeting-room">
