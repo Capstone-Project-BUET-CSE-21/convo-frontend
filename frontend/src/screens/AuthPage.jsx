@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import PropTypes from "prop-types";
 import { saveAuthSession } from "../auth/authSession";
 import "./AuthPage.css";
@@ -221,8 +221,8 @@ const AuthPage = ({ onAuthSuccess, onNewDevice }) => {
                             Where <em>conversations</em> create momentum.
                         </h1>
                         <div className="auth-intro-footnote">
-                            <span className="auth-intro-dot">Audio Watermarking</span>
-                            <span className="auth-intro-dot">Confidentiality Chain in File Sharing</span>
+                            <Link to="/watermark-test" className="auth-intro-dot">Audio Watermarking</Link>
+                            <Link to="/file-sharing-test" className="auth-intro-dot">Confidentiality Chain in File Sharing</Link>
                         </div>
                     </div>
                     <div className="auth-intro-image">

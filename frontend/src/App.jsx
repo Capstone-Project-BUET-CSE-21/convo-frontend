@@ -5,10 +5,8 @@ import MeetingRoom from './screens/MeetingRoom'
 import Homepage from './screens/Homepage'
 import AuthPage from './screens/AuthPage'
 import WatermarkTestPage from './screens/WatermarkTestPage'
-// import PipelineTestPage from './screens/PipelineTestPage'
 import FileSharingTestPage from './screens/FileSharingTestPage'
 import { clearAuthSession, getAuthToken, getAuthUser, saveAuthSession } from './auth/authSession'
-// import CryptoUnitTestPage from './crypto/CryptoUnitTestPage'
 import { BACKEND_URL } from './config/apiConfig'
 import { ensureUserHasKeys } from './crypto/keypair';
 
@@ -126,10 +124,8 @@ const App = () => {
         <Route path="/auth" element={authUser ? <Navigate to="/home" replace /> : <AuthPage onAuthSuccess={setAuthUser} onNewDevice={() => setNewDeviceNotice(true)} />} />
         <Route path="/home" element={authUser ? <Homepage homepageAttributes={homepageAttributes} /> : <Navigate to="/auth" replace />} />
         <Route path="/room/:roomId" element={authUser ? <MeetingRoom meetingRoomAttributes={meetingRoomAttributes} /> : <Navigate to="/auth" replace />} />
-        <Route path="/watermark-test" element={<WatermarkTestPage/>} />
-        {/* <Route path="/pipeline-test" element={authUser ? <PipelineTestPage /> : <Navigate to="/auth" replace />} /> */}
-        <Route path="/file-sharing-test" element={authUser ? <FileSharingTestPage /> : <Navigate to="/auth" replace />} />
-        {/* <Route path="/crypto-test" element={authUser ? <FileSharingTestPage /> : <CryptoUnitTestPage />} /> */}
+        <Route path="/watermark-test" element={<WatermarkTestPage />} />
+        <Route path="/file-sharing-test" element={<FileSharingTestPage />} />
       </Routes>
     </>
   )
