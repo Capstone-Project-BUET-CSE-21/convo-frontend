@@ -2,11 +2,13 @@ import PropTypes from "prop-types";
 import { ParticipantAvatar, MutedIndicator, RemoteParticipantTile } from "../../components/MeetingRoomHelperComponents";
 
 // How many tiles go in each row, for a given total participant count.
-// 1–3: everyone in a single row (solo gets a locked aspect ratio there, 2–3
-// stretch edge to edge — see MeetingRoom.css). 4+: split into rows of
-// roughly sqrt(count) tiles each, smaller rows first — e.g. 4 -> [2, 2],
-// 5 -> [2, 3], 7 -> [2, 2, 3], 9 -> [3, 3, 3] — so tiles stay a consistent,
-// sensible size instead of one long strip.
+// 1–3: everyone in a single row (solo gets a locked aspect ratio there; on
+// desktop widths 2–3 stretch edge to edge instead — see MeetingRoom.css,
+// where that stretch treatment is scoped to min-width: 901px since it
+// distorts badly on taller/narrower tablet and phone screens). 4+: split
+// into rows of roughly sqrt(count) tiles each, smaller rows first — e.g.
+// 4 -> [2, 2], 5 -> [2, 3], 7 -> [2, 2, 3], 9 -> [3, 3, 3] — so tiles stay a
+// consistent, sensible size instead of one long strip.
 const getRowSizes = (count) => {
   if (count <= 3) return [count];
 

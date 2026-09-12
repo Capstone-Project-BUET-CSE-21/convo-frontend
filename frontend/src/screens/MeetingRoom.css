@@ -284,31 +284,40 @@
 /* 2 and 3 participants: one full-height row, no locked aspect ratio — a
    deliberate exception to the rule above (Google Meet does this too: only
    solo and larger groups keep a locked ratio). 4+ falls through to the
-   generic rule above instead (getRowSizes splits it into rows). */
-.participants-grid[data-tile-count="2"] .participants-row,
-.participants-grid[data-tile-count="3"] .participants-row {
-  flex: 1 1 auto;
-  align-items: stretch;
-}
+   generic rule above instead (getRowSizes splits it into rows).
 
-/* 3: tiles stretch to fill the full row width edge to edge. */
-.participants-grid[data-tile-count="3"] .participant-card {
-  aspect-ratio: unset;
-  flex: 1 1 0;
-  width: auto;
-  height: 100%;
-}
+   Desktop only (min-width: 901px): "height: 100%" assumes a wide, short
+   stage. On a taller/narrower tablet or phone, the same rule made a 2-person
+   tile's height equal to the *entire* available stage height while its width
+   stayed pinned to a third of a narrow column — absurd, near-vertical-line
+   tiles. Below 901px this block simply doesn't apply, so tablet/phone use
+   the same aspect-ratio-locked, centered treatment as every other count. */
+@media (min-width: 901px) {
+  .participants-grid[data-tile-count="2"] .participants-row,
+  .participants-grid[data-tile-count="3"] .participants-row {
+    flex: 1 1 auto;
+    align-items: stretch;
+  }
 
-/* 2: sized to match what a 3-way split looks like, not independently
-   stretched to fill a 2-way split (which would make 2-person tiles a
-   noticeably wider/different shape than 3-person ones). Fixed width, not
-   flex-growing, so the row's centering leaves the leftover "third slot" as
-   even margin on both sides instead of stretching into it. */
-.participants-grid[data-tile-count="2"] .participant-card {
-  aspect-ratio: unset;
-  flex: 0 0 auto;
-  width: calc((100% - 2 * 10px) / 3);
-  height: 100%;
+  /* 3: tiles stretch to fill the full row width edge to edge. */
+  .participants-grid[data-tile-count="3"] .participant-card {
+    aspect-ratio: unset;
+    flex: 1 1 0;
+    width: auto;
+    height: 100%;
+  }
+
+  /* 2: sized to match what a 3-way split looks like, not independently
+     stretched to fill a 2-way split (which would make 2-person tiles a
+     noticeably wider/different shape than 3-person ones). Fixed width, not
+     flex-growing, so the row's centering leaves the leftover "third slot" as
+     even margin on both sides instead of stretching into it. */
+  .participants-grid[data-tile-count="2"] .participant-card {
+    aspect-ratio: unset;
+    flex: 0 0 auto;
+    width: calc((100% - 2 * 10px) / 3);
+    height: 100%;
+  }
 }
 
 /* Waiting message — an overlay near the bottom of the stage while alone, NOT
@@ -772,6 +781,17 @@
 
   .participants-grid {
     gap: 6px;
+    /* --toolbar-height is `auto` here (the toolbar wraps to fit its wrapped
+       buttons), and calc() can't do arithmetic with the auto keyword — that
+       silently invalidated the --stage-available-height calc below, which
+       fell back to width:auto for the solo tile (the only one still using
+       this formula at phone). With the video absolutely positioned out of
+       flow, "auto" content-size collapsed the tile to a near-empty box — the
+       "tiny dot" symptom. Use a fixed estimate of the wrapped toolbar's
+       actual height here instead, just for this calculation (the toolbar's
+       own height stays auto, unaffected). */
+    --stage-available-height: calc(100vh - var(--header-height) - 130px - 12px);
+    --stage-available-height: calc(100dvh - var(--header-height) - 130px - 12px);
   }
 
   /* Solo tile: phone-shaped (9:16 portrait) instead of desktop's 16:9. It
