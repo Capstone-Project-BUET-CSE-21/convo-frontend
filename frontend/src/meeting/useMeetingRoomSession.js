@@ -356,18 +356,27 @@ const useMeetingRoomSession = ({
     const incomingTransfers = incomingTransfersRef.current;
 
     const initialize = async () => {
-      const [rawStream] = await Promise.all([
-        navigator.mediaDevices.getUserMedia({
+      // Get the camera/mic first, on its own — a backend hiccup below must
+      // never take the local video preview down with it. Previously this was
+      // bundled into one Promise.all with the credentials/meeting-entry calls,
+      // unguarded: if ANY of the three rejected, the whole thing threw and
+      // every line after it (including attaching the local stream) silently
+      // never ran — no local video, no remote video, no WebSocket, no error.
+      let rawStream;
+      try {
+        rawStream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
             autoGainControl: true,
           },
-        }),
-        loadServerCredentials(),
-        makeMeetingEntry({ command, roomId }),
-      ]);
+        });
+      } catch (err) {
+        console.error("Failed to access camera/microphone:", err);
+        alert("Could not access your camera/microphone. Check permissions and try again.");
+        return;
+      }
 
       rawStream.getAudioTracks().forEach((track) => {
         track.enabled = isAudioEnabled;
@@ -378,6 +387,18 @@ const useMeetingRoomSession = ({
 
       rawStreamRef.current = rawStream;
       if (localVideoRef.current) localVideoRef.current.srcObject = rawStream;
+
+      // Local video is showing at this point regardless of what happens next.
+      try {
+        await Promise.all([
+          loadServerCredentials(),
+          makeMeetingEntry({ command, roomId }),
+        ]);
+      } catch (err) {
+        console.error("Failed to join meeting:", err);
+        alert("Could not join the meeting. Please try again.");
+        return;
+      }
 
       const mixBus = createLocalMixBus();
       localMixBusRef.current = mixBus;

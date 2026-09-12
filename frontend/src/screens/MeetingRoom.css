@@ -48,7 +48,16 @@
   font-family: var(--font-body);
   display: grid;
   grid-template-rows: var(--header-height) 1fr var(--toolbar-height);
-  min-height: 100vh;
+  /* A hard cap, not a floor: min-height let this box grow past the viewport
+     whenever the grid below wanted more room than it had (aspect-ratio'd
+     tiles demanding more height than 3+ rows had to give), and since nothing
+     above this in the tree (#root/body) clips or caps height either, the
+     whole page grew and scrolled. overflow:hidden below only clips content
+     that doesn't fit THIS box — it does nothing once this box itself grows.
+     A fixed height turns "grid wants more space" into "tiles shrink to fit"
+     instead of "the page scrolls in this one section". */
+  height: 100vh;
+  height: 100dvh;
   background: var(--surface-room);
   color: #fff;
   overflow: hidden;
@@ -187,6 +196,7 @@
    ============================================================ */
 
 .meeting-stage {
+  position: relative;
   overflow: hidden;
   display: flex;
   align-items: stretch;
@@ -197,145 +207,121 @@
 /* ── Participants grid ── */
 
 /*
-  The grid fills the entire stage. Tiles always occupy all available space.
-  aspect-ratio on cards is only applied for counts > 1 (via the card rule below).
-  Columns are set per data-tile-count; rows are left implicit so the browser
-  fills them evenly.
+  Rows are computed in JS (MeetingRoomScene's getRowSizes), not hardcoded per
+  participant count here — each .participants-row already knows its own tile
+  count (--row-size) and the grid already knows its total row count
+  (--tile-rows), both set as inline custom properties. That's what lets one
+  generic formula below handle any participant count instead of a long list
+  of per-count grid-template rules.
 
-  Column mapping (optimised for maximising tile size):
-    1        → 1 col  (full-screen, no aspect-ratio lock)
-    2        → 2 cols (side by side, full height)
-    3        → 2 cols (3rd tile centred via auto margin)
-    4        → 2 cols (perfect 2×2)
-    5–6      → 3 cols
-    7–9      → 3 cols
-    10–12    → 4 cols
-    13–16    → 4 cols
-    17–20    → 5 cols
+  1 participant: one row of one — the tile locks to 16:9, centered.
+  2–3 participants: one row, no aspect-ratio lock (the one deliberate
+    exception — see the overrides below). 3 stretches edge to edge; 2 is
+    sized to match what a 3-way split looks like, centered, rather than
+    independently stretching to fill a 2-way split.
+  4+ participants: split into multiple rows (getRowSizes aims for roughly
+    sqrt(count) tiles per row, smaller rows first — 4 -> [2, 2], 5 -> [2, 3],
+    7 -> [2, 2, 3]). Each row's tiles keep a strict 16:9 ratio and are
+    centered as a group with a gap between them, not stretched to the edges
+    of the stage.
 */
 
 .participants-grid {
   flex: 1;
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   gap: 10px;
   width: 100%;
   height: 100%;
   min-height: 0;
 
-  /* default: 1 participant — single tile, fill everything */
-  grid-template-columns: 1fr;
-  grid-template-rows: 1fr;
+  /* Available stage height in px. Declared twice: vh first (universal
+     fallback), dvh second (wins where supported, accounts for mobile chrome
+     so the browser's own UI doesn't get counted as usable space). */
+  --stage-available-height: calc(100vh - var(--header-height) - var(--toolbar-height) - 24px);
+  --stage-available-height: calc(100dvh - var(--header-height) - var(--toolbar-height) - 24px);
+
+  /* Locked tile ratio, as separate numbers (not the "16/9" shorthand) so the
+     width formula below can also do arithmetic with it. 16:9 by default;
+     overridden per breakpoint for the solo tile only (see the media queries
+     below) — 4:3 on tablet, 9:16 on phone, matching each device's own screen
+     shape instead of a fixed widescreen ratio everywhere. */
+  --tile-ratio-w: 16;
+  --tile-ratio-h: 9;
+}
+
+.participants-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  min-height: 0;
+  /* Content-sized by default: a row of fixed-aspect-ratio tiles takes only
+     the height its tiles need, so the stack of rows can be centered as a
+     group rather than stretching to fill the stage. Overridden below for the
+     2–4 case, where the single row IS meant to fill the full height. */
+  flex: 0 0 auto;
+}
+
+.participants-row .participant-card {
+  /* Strict --tile-ratio-w:--tile-ratio-h, sized from whichever is tighter:
+     the stage's available height divided evenly across all rows
+     (--tile-rows, gaps included), or this row's available width divided
+     evenly across its own tiles (--row-size, gaps included). min() picks
+     whichever actually binds, so tiles are the largest boxes at that ratio
+     that fit both without ever overflowing their row or the stage — and
+     same-sized across rows in the common case where height is the binding
+     constraint. */
+  aspect-ratio: var(--tile-ratio-w) / var(--tile-ratio-h);
+  height: auto;
+  width: min(
+    calc((100% - (var(--row-size) - 1) * 10px) / var(--row-size)),
+    calc((var(--stage-available-height) - (var(--tile-rows) - 1) * 10px) / var(--tile-rows) * var(--tile-ratio-w) / var(--tile-ratio-h))
+  );
+}
+
+/* 2 and 3 participants: one full-height row, no locked aspect ratio — a
+   deliberate exception to the rule above (Google Meet does this too: only
+   solo and larger groups keep a locked ratio). 4+ falls through to the
+   generic rule above instead (getRowSizes splits it into rows). */
+.participants-grid[data-tile-count="2"] .participants-row,
+.participants-grid[data-tile-count="3"] .participants-row {
+  flex: 1 1 auto;
   align-items: stretch;
-  justify-items: stretch;
 }
 
-/* ── 2: two equal columns, full height ── */
-.participants-grid[data-tile-count="2"] {
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: 1fr;
+/* 3: tiles stretch to fill the full row width edge to edge. */
+.participants-grid[data-tile-count="3"] .participant-card {
+  aspect-ratio: unset;
+  flex: 1 1 0;
+  width: auto;
+  height: 100%;
 }
 
-/* ── 3: 2 columns; the third card centres itself ── */
-.participants-grid[data-tile-count="3"] {
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, 1fr);
+/* 2: sized to match what a 3-way split looks like, not independently
+   stretched to fill a 2-way split (which would make 2-person tiles a
+   noticeably wider/different shape than 3-person ones). Fixed width, not
+   flex-growing, so the row's centering leaves the leftover "third slot" as
+   even margin on both sides instead of stretching into it. */
+.participants-grid[data-tile-count="2"] .participant-card {
+  aspect-ratio: unset;
+  flex: 0 0 auto;
+  width: calc((100% - 2 * 10px) / 3);
+  height: 100%;
 }
 
-/* The third child in a 3-participant grid spans both columns
-   and is constrained to a natural width so it stays centred */
-.participants-grid[data-tile-count="3"] .participant-card:nth-child(3) {
-  grid-column: 1 / -1;
-  justify-self: center;
-  width: 50%;
-}
-
-/* ── 4: 2×2 ── */
-.participants-grid[data-tile-count="4"] {
-  grid-template-columns: repeat(2, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-}
-
-/* ── 5–6: 3 columns, 2 rows ── */
-.participants-grid[data-tile-count="5"],
-.participants-grid[data-tile-count="6"] {
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(2, 1fr);
-}
-
-/* Centre the lone last tile when count is 5 */
-.participants-grid[data-tile-count="5"] .participant-card:nth-child(5) {
-  grid-column: 2 / 3;
-}
-
-/* ── 7–9: 3 columns, 3 rows ── */
-.participants-grid[data-tile-count="7"],
-.participants-grid[data-tile-count="8"],
-.participants-grid[data-tile-count="9"] {
-  grid-template-columns: repeat(3, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-}
-
-/* Centre the lone last tile at 7 */
-.participants-grid[data-tile-count="7"] .participant-card:nth-child(7) {
-  grid-column: 2 / 3;
-}
-
-/* ── 10–12: 4 columns, 3 rows ── */
-.participants-grid[data-tile-count="10"],
-.participants-grid[data-tile-count="11"],
-.participants-grid[data-tile-count="12"] {
-  grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(3, 1fr);
-}
-
-/* ── 13–16: 4 columns, 4 rows ── */
-.participants-grid[data-tile-count="13"],
-.participants-grid[data-tile-count="14"],
-.participants-grid[data-tile-count="15"],
-.participants-grid[data-tile-count="16"] {
-  grid-template-columns: repeat(4, 1fr);
-  grid-template-rows: repeat(4, 1fr);
-}
-
-/* ── 17–20: 5 columns, 4 rows ── */
-.participants-grid[data-tile-count="17"],
-.participants-grid[data-tile-count="18"],
-.participants-grid[data-tile-count="19"],
-.participants-grid[data-tile-count="20"] {
-  grid-template-columns: repeat(5, 1fr);
-  grid-template-rows: repeat(4, 1fr);
-}
-
-/* ── 21+: safety fallback — auto-fill with minimum tile width ── */
-.participants-grid[data-tile-count]:not(
-  [data-tile-count="1"],
-  [data-tile-count="2"],
-  [data-tile-count="3"],
-  [data-tile-count="4"],
-  [data-tile-count="5"],
-  [data-tile-count="6"],
-  [data-tile-count="7"],
-  [data-tile-count="8"],
-  [data-tile-count="9"],
-  [data-tile-count="10"],
-  [data-tile-count="11"],
-  [data-tile-count="12"],
-  [data-tile-count="13"],
-  [data-tile-count="14"],
-  [data-tile-count="15"],
-  [data-tile-count="16"],
-  [data-tile-count="17"],
-  [data-tile-count="18"],
-  [data-tile-count="19"],
-  [data-tile-count="20"]
-) {
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  grid-template-rows: unset;
-}
-
-/* Waiting message — spans the full grid when the local user is alone */
+/* Waiting message — an overlay near the bottom of the stage while alone, NOT
+   a normal-flow sibling of .participants-row. It used to be a grid cell that
+   overlaid existing grid space for free; as a flex-column sibling it would
+   instead add its own height on top of the solo tile's — which is already
+   sized to claim the stage's *entire* available height — pushing the total
+   taller than the stage and clipping the tile's top under centering. */
 .participants-grid__waiting {
-  grid-column: 1 / -1;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -361,43 +347,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  /* No aspect-ratio by default — tiles fill the grid cell fully */
   min-width: 0;
   min-height: 0;
   transition: border-color 0.2s ease;
+  /* Sizing (aspect ratio, width/height) is handled by .participants-row
+     .participant-card and the 2/3/4-count override above — this rule is
+     purely the tile's visual chrome. */
 }
 
-/*
-  For counts > 1, enforce 16/9 so tiles don't become awkward slivers
-  when the grid has more columns than rows.
-  For count = 1, we deliberately skip this so the single tile fills
-  the entire stage vertically and horizontally.
-*/
-.participants-grid[data-tile-count]:not([data-tile-count="1"]) .participant-card {
-  aspect-ratio: 16/9;
-}
-
-.participant-card:hover {.meeting-toolbar {
-  position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
-
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8px;
-
-  height: var(--toolbar-height);
-  padding: 0 1.5rem;
-
-  background: var(--surface-toolbar);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
-
-  border-top: 1px solid var(--border-room);
-  z-index: 1000;
-}
+.participant-card:hover {
   border-color: rgba(255, 255, 255, 0.1);
 }
 
@@ -735,54 +693,29 @@
     --header-height: 52px;
   }
 
+  /* Below this width, tiles stack/collapse and the page is meant to grow and
+     scroll (the phone breakpoint's stacked layout in particular relies on
+     this) — restore the original grow-with-content behavior the desktop fix
+     above deliberately moves away from. */
+  .meeting-room {
+    height: auto;
+    min-height: 100vh;
+  }
+
   .meeting-stage {
     padding: 8px;
   }
 
-  .participants-grid {
+  /* Solo tile: tablet-shaped (4:3) instead of desktop's 16:9. Only solo —
+     multi-participant tiles keep whatever ratio they already use. */
+  .participants-grid[data-tile-count="1"] {
+    --tile-ratio-w: 4;
+    --tile-ratio-h: 3;
+  }
+
+  .participants-grid,
+  .participants-row {
     gap: 8px;
-  }
-
-  /* Collapse 3-col layouts to 2 columns on tablet */
-  .participants-grid[data-tile-count="5"],
-  .participants-grid[data-tile-count="6"],
-  .participants-grid[data-tile-count="7"],
-  .participants-grid[data-tile-count="8"],
-  .participants-grid[data-tile-count="9"] {
-    grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: unset;
-  }
-
-  /* Collapse 4-col layouts to 3 columns on tablet */
-  .participants-grid[data-tile-count="10"],
-  .participants-grid[data-tile-count="11"],
-  .participants-grid[data-tile-count="12"],
-  .participants-grid[data-tile-count="13"],
-  .participants-grid[data-tile-count="14"],
-  .participants-grid[data-tile-count="15"],
-  .participants-grid[data-tile-count="16"] {
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: unset;
-  }
-
-  /* Collapse 5-col layouts to 4 columns on tablet */
-  .participants-grid[data-tile-count="17"],
-  .participants-grid[data-tile-count="18"],
-  .participants-grid[data-tile-count="19"],
-  .participants-grid[data-tile-count="20"] {
-    grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: unset;
-  }
-
-  /* Reset any desktop nth-child centering — let tiles flow naturally */
-  .participants-grid[data-tile-count="5"] .participant-card:nth-child(5),
-  .participants-grid[data-tile-count="7"] .participant-card:nth-child(7) {
-    grid-column: unset;
-  }
-
-  /* The 3-participant lone tile still centres in 2-col layout */
-  .participants-grid[data-tile-count="3"] .participant-card:nth-child(3) {
-    width: 60%;
   }
 
   .toolbar-btn {
@@ -839,25 +772,40 @@
 
   .participants-grid {
     gap: 6px;
-    /* All counts: single column on phone */
-    grid-template-columns: 1fr !important;
-    grid-template-rows: unset !important;
   }
 
-  /* Reset all desktop centering tricks on mobile — just stack */
-  .participants-grid .participant-card:nth-child(n) {
-    grid-column: unset;
-    justify-self: unset;
-    width: 100%;
+  /* Solo tile: phone-shaped (9:16 portrait) instead of desktop's 16:9. It
+     keeps the contained min() formula above rather than being forced to
+     width:100% like the multi-participant override below — a strict 9:16 box
+     stretched to the phone's full width could come out taller than the
+     available stage height, reintroducing the exact clipping bug fixed
+     earlier. min() already guarantees it never does that. */
+  .participants-grid[data-tile-count="1"] {
+    --tile-ratio-w: 9;
+    --tile-ratio-h: 16;
   }
 
-  /* Restore aspect-ratio on all tiles when stacked vertically */
- .participants-grid[data-tile-count]:not([data-tile-count="1"]) .participant-card {
-    width: 100%;
-    height: 100%;
+  /* Narrow screens can't usefully show tiles side by side — every
+     multi-participant tile becomes its own full-width row regardless of
+     count or the JS-computed grouping, overriding both the row-based formula
+     and the 2/3/4 stretch exception above. Rows grow to fit their (now
+     stacked) tiles and the page scrolls if there are many, same as the
+     original single-column design. */
+  .participants-row {
+    flex: 0 0 auto !important;
+    flex-wrap: wrap;
+    align-items: stretch;
+    gap: 6px;
+  }
+
+  .participants-grid:not([data-tile-count="1"]) .participant-card {
+    aspect-ratio: 16 / 9 !important;
+    flex: 1 1 100% !important;
+    width: 100% !important;
+    height: auto !important;
     min-width: 0;
     min-height: 0;
-}
+  }
 
   .meeting-toolbar {
     flex-wrap: wrap;
