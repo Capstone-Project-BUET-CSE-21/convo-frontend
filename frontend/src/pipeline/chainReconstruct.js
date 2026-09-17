@@ -144,7 +144,10 @@ export const walkChain = async (startEntry, chainIndex, { verifyHop, isAuthorize
       return { hops, stopReason: "broken" };
     }
 
-    const authorized = await isAuthorizedHop(current);
+    // chainIndex is passed through so isAuthorizedHop can look up the
+    // immediate ancestor's recipient list (real per-file ACL) instead of
+    // only having the current hop in isolation — see makeIsAuthorizedHop.
+    const authorized = await isAuthorizedHop(current, chainIndex);
     if (!authorized) {
       hops.push({ entry: current, status: "unauthorized", reason: "sender-not-a-permitted-participant" });
       return { hops, stopReason: "unauthorized" };

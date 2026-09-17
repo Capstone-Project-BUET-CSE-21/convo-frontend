@@ -117,32 +117,45 @@ export const makeVerifyHop = (contentHash) => async (entry) => {
 };
 
 /**
- * Builds the isAuthorizedHop callback walkChain expects: (entry) => boolean.
+ * Builds the isAuthorizedHop callback walkChain expects:
+ * (entry, chainIndex) => boolean.
  *
- * Per the plan: don't equate meeting attendance with authorization to hold
- * this specific file. session_participants is currently the only table we
- * have, so that's what this checks against for now — see the note in
- * SessionParticipantService about that being a known limitation to revisit.
+ * Real per-file ACL, not meeting attendance: every transfer now records who
+ * it was actually sent to (TransferRecipient, populated from
+ * MetadataRequestDto.recipients — see provenancePipeline.js). A non-root
+ * hop is authorized iff its sender was named as a recipient by whoever held
+ * the file immediately before them — i.e. "did the previous holder actually
+ * hand this to them," not "were they merely present in the same meeting."
+ *
+ * A root hop (previousHash === null) has no prior holder to have authorized
+ * it, so there's nothing to check it against except the session it claims
+ * to have originated in — session_participants remains the fallback there,
+ * and only there. See the note this replaces in SessionParticipantService
+ * for why that's a weaker signal in general.
  *
  * @param {string} baseUrl confidentiality service base URL
  */
-export const makeIsAuthorizedHop = (baseUrl) => async (entry) => {
-  // Check the session THIS hop actually happened in — not
-  // entry.originSessionId (the chain's root session, inherited by every
-  // downstream hop purely for the trace screen's "(originally signed in
-  // session X)" display note). Using originSessionId here was checking
-  // every hop against the very first meeting in the file's whole history,
-  // rather than the meeting the sender actually shared it in — so a real,
-  // properly-registered forward could never pass this check unless the
-  // sender also happened to be in the file's original founding meeting.
-  const sessionId = entry.sessionId;
-  try {
-    const participants = await fetchSessionParticipants(sessionId, baseUrl);
-    return participants.has(entry.senderId);
-  } catch {
-    // Fail closed: if we can't confirm authorization, treat the hop as
-    // unauthorized rather than silently passing it through. The trace
-    // screen surfaces this distinctly (see FileTraceScreen.jsx).
+export const makeIsAuthorizedHop = (baseUrl) => async (entry, chainIndex) => {
+  if (!entry.previousHash) {
+    try {
+      const participants = await fetchSessionParticipants(entry.sessionId, baseUrl);
+      return participants.has(entry.senderId);
+    } catch {
+      // Fail closed: if we can't confirm authorization, treat the hop as
+      // unauthorized rather than silently passing it through. The trace
+      // screen surfaces this distinctly (see FileTraceScreen.jsx).
+      return false;
+    }
+  }
+
+  const ancestor = chainIndex?.get(entry.previousHash);
+  if (!ancestor) {
+    // walkChain already treats a missing link as "broken" before it ever
+    // reaches authorization, so this shouldn't happen in practice — fail
+    // closed anyway rather than assuming authorized.
     return false;
   }
+
+  const recipients = Array.isArray(ancestor.recipients) ? ancestor.recipients : [];
+  return recipients.includes(entry.senderId);
 };

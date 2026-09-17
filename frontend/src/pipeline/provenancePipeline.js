@@ -44,6 +44,17 @@ export const resolvePreviousHash = async (contentHash, baseUrl) => {
 };
 
 export const requestMetadataBlock = async (sessionCtx, file, previousHash) => {
+  // Who this hop is actually going to (already resolved to user IDs by the
+  // caller — see ChatFileShare.jsx's sessionCtx.recipientIds, built from
+  // peerUserIds). Required and non-empty on the backend: this is what a
+  // later hop's authorization check is measured against instead of mere
+  // session attendance (see identity/traceVerification.js's
+  // makeIsAuthorizedHop and convo-file-sharing's TransferRecipient).
+  const recipients = Array.isArray(sessionCtx.recipientIds) ? sessionCtx.recipientIds : [];
+  if (recipients.length === 0) {
+    throw new Error("Cannot request transfer metadata without at least one recipient");
+  }
+
   const response = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
@@ -54,6 +65,7 @@ export const requestMetadataBlock = async (sessionCtx, file, previousHash) => {
       fileSize: file.size,
       mimeType: file.type || "application/octet-stream",
       previousHash: previousHash ?? null,
+      recipients,
     }),
   });
 

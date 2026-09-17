@@ -271,6 +271,64 @@ const ChainWalkTests = () => {
       print("walkChain unauthorized hop", false, e.message);
     }
 
+    // Mirrors makeIsAuthorizedHop's non-root branch (identity/traceVerification.js):
+    // a hop is authorized iff its sender is in the *immediate ancestor's*
+    // recipients list, not just "known to the chain" or "in the same
+    // session." Root hops (no previousHash) aren't exercised here since the
+    // real implementation falls back to a network call (fetchSessionParticipants)
+    // for those — this stub only covers the recipients-list branch.
+    const isAuthorizedByRecipients = async (entry, chainIndex) => {
+      if (!entry.previousHash) return true;
+      const ancestor = chainIndex?.get(entry.previousHash);
+      if (!ancestor) return false;
+      const recipients = Array.isArray(ancestor.recipients) ? ancestor.recipients : [];
+      return recipients.includes(entry.senderId);
+    };
+
+    try {
+      // alice (root) -> bob -> carol, where each hop only lists its actual
+      // next holder as a recipient.
+      const entryA = { fileHash: "hash-a", previousHash: null, senderId: "alice", recipients: ["bob"] };
+      const entryB = { fileHash: "hash-b", previousHash: "hash-a", senderId: "bob", recipients: ["carol"] };
+      const entryC = { fileHash: "hash-c", previousHash: "hash-b", senderId: "carol", recipients: [] };
+      const index = buildChainIndex([entryA, entryB, entryC]);
+
+      const result = await walkChain(entryC, index, {
+        verifyHop: alwaysValid,
+        isAuthorizedHop: isAuthorizedByRecipients,
+      });
+
+      print(
+        "walkChain authorizes a hop whose sender is in its ancestor's recipients list",
+        result.stopReason === "root" && result.hops.every((h) => h.status === "ok"),
+        JSON.stringify(result.hops.map((h) => h.status))
+      );
+    } catch (e) {
+      print("walkChain recipients-list authorization (positive case)", false, e.message);
+    }
+
+    try {
+      // alice's root transfer only ever named bob as a recipient — mallory
+      // claiming a hop directly off it (skipping bob) must be rejected, even
+      // though mallory might have been present in the same session.
+      const entryA = { fileHash: "hash-a", previousHash: null, senderId: "alice", recipients: ["bob"] };
+      const entryB = { fileHash: "hash-b", previousHash: "hash-a", senderId: "mallory", recipients: [] };
+      const index = buildChainIndex([entryA, entryB]);
+
+      const result = await walkChain(entryB, index, {
+        verifyHop: alwaysValid,
+        isAuthorizedHop: isAuthorizedByRecipients,
+      });
+
+      print(
+        "walkChain rejects a hop whose sender was never a named recipient of its ancestor",
+        result.stopReason === "unauthorized",
+        JSON.stringify(result)
+      );
+    } catch (e) {
+      print("walkChain recipients-list authorization (negative case)", false, e.message);
+    }
+
     try {
       const malformedFromRealBackendShape = [
         {
@@ -352,6 +410,7 @@ const IntegrationTest = () => {
           fileName: "integration-test.txt",
           fileSize: fileBuffer.byteLength,
           mimeType: "text/plain",
+          recipients: [crypto.randomUUID()],
         }),
       });
       if (!metaRes.ok) throw new Error(`Metadata request failed: ${metaRes.status}`);
@@ -591,6 +650,7 @@ const VerificationIntegrationTest = () => {
         fileName: "debashri-test.txt",
         fileSize: fileBuffer.byteLength,
         mimeType: "text/plain",
+        recipients: [crypto.randomUUID()],
       }),
     });
     if (!metaRes.ok) throw new Error(`Metadata request failed: ${metaRes.status}`);
