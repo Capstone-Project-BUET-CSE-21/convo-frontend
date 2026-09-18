@@ -7,8 +7,6 @@ import { WS_URL } from "../config/apiConfig";
 import { makeMeetingEntry, fetchServerCredentials, fetchWatermarkConfig } from "./meetingApi";
 import { createDataChannelTransfer } from "./dataChannelTransfer";
 import { createPeerConnectionManager } from "./peerConnectionManager";
-import { registerSessionParticipant } from "../identity/traceVerification";
-import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
 // How long to wait before retrying the watermark backend after it fails, so a
 // participant who joined before it came online still gets activated once it
@@ -408,13 +406,11 @@ const useMeetingRoomSession = ({
 
       initPlaybackWatermark();
 
-      // Record real presence in this real session, so the trace/lineage
-      // screen's isAuthorizedHop check has something to check hops
-      // against later (see identity/traceVerification.js). Best-effort:
-      // must never block the meeting itself from loading.
-      registerSessionParticipant(roomId, authUser.id, CONFIDENTIALITY_CHAIN_URL).catch((err) => {
-        console.error("Failed to register session participant:", err);
-      });
+      // No client-side registration call here any more — convo-backend's
+      // own meeting-entry flow (makeMeetingEntry, above) already records
+      // real presence in meeting_user, which is what the trace/lineage
+      // screen's isAuthorizedHop check reads (via convo-file-sharing's own
+      // call to convo-backend — see identity/traceVerification.js).
 
       const token = getAuthToken();
       const wsUrl = `${WS_URL}/ws` + (token ? `?token=${encodeURIComponent(token)}` : "");
