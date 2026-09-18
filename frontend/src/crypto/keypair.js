@@ -80,7 +80,7 @@ export const generateAndStoreECDHKeypair = async (userId) => {
 }
 
 export const registerPublicKey = async (userId, publicKeyBase64, algorithm = "ECDSA-P256") => {
-  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys`, {
+  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/keys`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
@@ -130,7 +130,7 @@ export const getLocalPublicKeyBase64 = async (userId, algorithm = "ECDSA-P256") 
 // spurious mismatch/registration — so this throws on an inconclusive response
 // rather than returning an empty list.
 const fetchRegisteredKeys = async (userId, algorithm) => {
-  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys/${userId}/${algorithm}/all`, { headers: authHeaders() });
+  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/keys/${userId}/${algorithm}/all`, { headers: authHeaders() });
   if (!res.ok) {
     throw new Error(`Key history lookup failed: ${res.status}`);
   }

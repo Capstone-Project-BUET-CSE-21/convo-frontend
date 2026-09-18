@@ -3,7 +3,7 @@ import { authHeaders } from "../auth/authFetch";
 import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
 export const fetchECDHPublicKey = async (userId) => {
-  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys/${userId}/ECDH-P256`, {
+  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/keys/${userId}/ECDH-P256`, {
     cache: "no-store",
     headers: authHeaders(),
   });

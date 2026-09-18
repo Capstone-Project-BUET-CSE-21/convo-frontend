@@ -1,5 +1,5 @@
 // Records a download event against convo-file-sharing's
-// POST /api/sessions/{sessionId}/downloads (see FileDownloadController),
+// POST /api/file-sharing/sessions/{sessionId}/downloads (see FileDownloadController),
 // mirroring fetchSessionParticipants in identity/traceVerification.js —
 // same authHeaders() pattern, same "caller supplies baseUrl" shape.
 //
@@ -17,7 +17,7 @@ import { authHeaders } from "../auth/authFetch";
  * @param {string} params.baseUrl   confidentiality service base URL
  */
 export const recordFileDownload = async ({ sessionId, userId, contentHash, baseUrl }) => {
-  const res = await fetch(`${baseUrl}/api/sessions/${sessionId}/downloads`, {
+  const res = await fetch(`${baseUrl}/api/file-sharing/sessions/${sessionId}/downloads`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ userId, contentHash }),
@@ -29,7 +29,7 @@ export const recordFileDownload = async ({ sessionId, userId, contentHash, baseU
 };
 
 /**
- * GET /api/downloads/{contentHash} — every recorded download event for a
+ * GET /api/file-sharing/downloads/{contentHash} — every recorded download event for a
  * given file, oldest first (see FileDownloadController.listDownloads).
  * Used by the Downloads tab of screens/FileSharingTestPage.jsx to verify a
  * recorded download actually shows up; nothing in the real meeting UI
@@ -39,7 +39,7 @@ export const recordFileDownload = async ({ sessionId, userId, contentHash, baseU
  * @param {string} baseUrl confidentiality service base URL
  */
 export const fetchDownloadHistory = async (contentHash, baseUrl) => {
-  const res = await fetch(`${baseUrl}/api/downloads/${contentHash}`, {
+  const res = await fetch(`${baseUrl}/api/file-sharing/downloads/${contentHash}`, {
     headers: authHeaders(),
   });
   if (!res.ok) {

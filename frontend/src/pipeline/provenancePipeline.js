@@ -55,7 +55,7 @@ export const requestMetadataBlock = async (sessionCtx, file, previousHash) => {
     throw new Error("Cannot request transfer metadata without at least one recipient");
   }
 
-  const response = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata`, {
+  const response = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/transfer/metadata`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({
@@ -78,7 +78,7 @@ export const requestMetadataBlock = async (sessionCtx, file, previousHash) => {
 };
 
 export const attachHashAndSignature = async (transferId, { fileHash, signature, contentHash }) => {
-  const response = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata/${transferId}`, {
+  const response = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/transfer/metadata/${transferId}`, {
     method: "PATCH",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ fileHash, signature, contentHash }),
@@ -110,7 +110,7 @@ export const requestEncryptionKeyBundle = async (sessionCtx) => {
         return [recipientId, { publicKey: announcedKey, algorithm: "ECDH-P256" }];
       }
 
-      const response = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys/${recipientId}/ECDH-P256`, {
+      const response = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/keys/${recipientId}/ECDH-P256`, {
         headers: authHeaders(),
       });
       if (!response.ok) {

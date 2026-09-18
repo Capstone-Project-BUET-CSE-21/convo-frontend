@@ -4,7 +4,7 @@ import { authHeaders } from "../auth/authFetch";
 import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
 export const fetchPublicKey = async (userId, algorithm = "ECDSA-P256") => {
-  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys/${userId}/${algorithm}`, { headers: authHeaders() });
+  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/keys/${userId}/${algorithm}`, { headers: authHeaders() });
   if (!res.ok) return null;
   const { publicKey } = await res.json();
   return publicKey;
@@ -15,7 +15,7 @@ export const fetchPublicKey = async (userId, algorithm = "ECDSA-P256") => {
 // made with a since-rotated key — see verifyBlockWithHistory. Returns [] if the
 // user has no registered keys (or the lookup fails).
 export const fetchPublicKeys = async (userId, algorithm = "ECDSA-P256") => {
-  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys/${userId}/${algorithm}/all`, { headers: authHeaders() });
+  const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/keys/${userId}/${algorithm}/all`, { headers: authHeaders() });
   if (!res.ok) return [];
   const rows = await res.json();
   return Array.isArray(rows) ? rows.map((r) => r.publicKey).filter(Boolean) : [];

@@ -24,7 +24,7 @@ import { authHeaders } from "../auth/authFetch";
 
 const participantsCache = new Map(); // sessionId -> Promise<Set<userId>>
 
-// GET /api/sessions/{sessionId}/participants — convo-file-sharing's
+// GET /api/file-sharing/sessions/{sessionId}/participants — convo-file-sharing's
 // SessionParticipantService answers this by calling convo-backend's own
 // internal API for the real meeting_user rows, not a separate copy. No
 // corresponding registration call exists on this side — convo-backend's
@@ -32,7 +32,7 @@ const participantsCache = new Map(); // sessionId -> Promise<Set<userId>>
 // client ever gets here.
 export const fetchSessionParticipants = async (sessionId, baseUrl) => {
   if (!participantsCache.has(sessionId)) {
-    const promise = fetch(`${baseUrl}/api/sessions/${sessionId}/participants`, { headers: authHeaders() })
+    const promise = fetch(`${baseUrl}/api/file-sharing/sessions/${sessionId}/participants`, { headers: authHeaders() })
       .then((res) => {
         if (!res.ok) {
           throw new Error(`Participants lookup failed for session ${sessionId}: ${res.status}`);

@@ -16,12 +16,12 @@ import { fetchUserDisplayNames } from "../identity/userLookup";
 //
 // SHARE CHAIN tab — hashes the uploaded file and asks the backend for any
 // real share/forward history recorded under that hash (GET
-// /api/transfer/metadata/history/{contentHash}), then traces it via
+// /api/file-sharing/transfer/metadata/history/{contentHash}), then traces it via
 // FileTraceScreen, the same trace/lineage component the real app uses.
 //
 // DOWNLOADS tab — hashes the uploaded file and asks the backend for every
 // real download event recorded under that hash (GET
-// /api/downloads/{contentHash}) — the same rows components/ChatFileBubble.jsx's
+// /api/file-sharing/downloads/{contentHash}) — the same rows components/ChatFileBubble.jsx's
 // real Download button creates via recordFileDownload. Pure lookup, same
 // shape as the Share Chain tab: upload a file you already downloaded
 // through Convo, see who's on record as having downloaded it and when.

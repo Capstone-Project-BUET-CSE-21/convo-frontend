@@ -80,10 +80,10 @@ export const reconstructChain = (signedBlock, chainStore) => {
 // (as of this change) by receive-side verification.
 // ---------------------------------------------------------------
 export const fetchChainHistory = async (contentHash, baseUrl) => {
-  // GET /api/transfer/metadata/history/{contentHash} — TransferMetadataController
-  // const res = await fetch(`${baseUrl}/api/transfer/metadata/history/${contentHash}`);
+  // GET /api/file-sharing/transfer/metadata/history/{contentHash} — TransferMetadataController
+  // const res = await fetch(`${baseUrl}/api/file-sharing/transfer/metadata/history/${contentHash}`);
   const normalizedBaseUrl = baseUrl.replace(/\/+$/, ""); // strip any trailing slash(es)
-  const res = await fetch(`${normalizedBaseUrl}/api/transfer/metadata/history/${contentHash}`, {
+  const res = await fetch(`${normalizedBaseUrl}/api/file-sharing/transfer/metadata/history/${contentHash}`, {
     headers: authHeaders(),
   });
   if (!res.ok) {

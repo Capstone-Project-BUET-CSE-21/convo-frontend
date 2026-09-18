@@ -392,7 +392,7 @@ const IntegrationTest = () => {
     try {
       // 1. keypair + registration
       const { privateKey, publicKeyBase64 } = await generateAndStoreKeypair(senderId);
-      const regRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys`, {
+      const regRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/keys`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: senderId, publicKey: publicKeyBase64, algorithm: "ECDSA-P256" }),
@@ -401,7 +401,7 @@ const IntegrationTest = () => {
       if (!regRes.ok) throw new Error("Key registration failed");
 
       // 2. request metadata block
-      const metaRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata`, {
+      const metaRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/transfer/metadata`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -429,7 +429,7 @@ const IntegrationTest = () => {
       print("Sign block (Anisa 2.3)", !!signature, signature.slice(0, 24) + "…");
 
       // 4. PATCH backend
-      const patchRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata/${metadata.transferId}`, {
+      const patchRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/transfer/metadata/${metadata.transferId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fileHash, signature }),
@@ -448,7 +448,7 @@ const IntegrationTest = () => {
       if (!roundTripOk) throw new Error("File bytes did not round-trip");
 
       // 7. receiver fetches sender's public key
-      const keyRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys/${senderId}`);
+      const keyRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/keys/${senderId}`);
       if (!keyRes.ok) throw new Error(`Public key lookup failed: ${keyRes.status}`);
       const { publicKey: fetchedKeyB64 } = await keyRes.json();
       print("Receiver fetches sender's public key (Fariha 3.2)", !!fetchedKeyB64);
@@ -635,13 +635,13 @@ const VerificationIntegrationTest = () => {
     const fileBuffer = new TextEncoder().encode(fileText).buffer;
 
     const { privateKey, publicKeyBase64 } = await generateAndStoreKeypair(senderId);
-    await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys`, {
+    await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/keys`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId: senderId, publicKey: publicKeyBase64, algorithm: "ECDSA-P256" }),
     });
 
-    const metaRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata`, {
+    const metaRes = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/transfer/metadata`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -659,7 +659,7 @@ const VerificationIntegrationTest = () => {
     const fileHash = await computeFileHash(fileBuffer, metadata);
     const signature = await signBlock(fileHash, metadata, privateKey);
 
-    await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/transfer/metadata/${metadata.transferId}`, {
+    await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/transfer/metadata/${metadata.transferId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ fileHash, signature }),

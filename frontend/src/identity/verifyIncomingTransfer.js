@@ -26,7 +26,7 @@ const rejected = (reason) => ({
  * @param {ArrayBuffer} params.fileBytes
  * @param {string} params.baseUrl        confidentiality service base URL (same one
  *                                        provenancePipeline.js uses for
- *                                        /api/transfer/metadata/history/{contentHash})
+ *                                        /api/file-sharing/transfer/metadata/history/{contentHash})
  * @param {Map} [params.peerNames]
  * @param {string} [params.fallbackName]
  * @param {string} [params.sessionName]

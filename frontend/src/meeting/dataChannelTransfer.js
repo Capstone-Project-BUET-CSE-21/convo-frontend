@@ -190,7 +190,7 @@ export const createDataChannelTransfer = ({
             signedBlock,
             fileBytes,
             baseUrl: CONFIDENTIALITY_CHAIN_URL,   // NOT BACKEND_URL — this is the
-                                                      // service that owns /api/transfer/metadata,
+                                                      // service that owns /api/file-sharing/transfer/metadata,
                                                       // same one provenancePipeline.js posts to
             peerNames,
             fallbackName: peerNames.get(peerId) || transfer.meta.fromName,

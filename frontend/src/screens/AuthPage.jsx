@@ -143,7 +143,7 @@ const AuthPage = ({ onAuthSuccess, onNewDevice }) => {
             setError("");
             setFeedback("");
             try {
-                const res = await fetch(`${BACKEND_URL}/api/auth/login`, {
+                const res = await fetch(`${BACKEND_URL}/api/backend/auth/login`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -184,7 +184,7 @@ const AuthPage = ({ onAuthSuccess, onNewDevice }) => {
             setError("");
             setFeedback("");
             try {
-                const res = await fetch(`${BACKEND_URL}/api/auth/signup`, {
+                const res = await fetch(`${BACKEND_URL}/api/backend/auth/signup`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

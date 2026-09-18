@@ -7,7 +7,7 @@
 // chain can span meetings the viewer was never part of — those hops fell
 // back to "Unknown sender" / a truncated UUID with no way to fix it.
 //
-// This calls convo-backend's GET /api/users/{id} and POST /api/users/batch
+// This calls convo-backend's GET /api/backend/users/{id} and POST /api/backend/users/batch
 // (UserController) to resolve any senderId to its real display_name,
 // regardless of whether the viewer ever shared a meeting with that sender.
 
@@ -25,7 +25,7 @@ export const fetchUserDisplayNames = async (userIds, baseUrl = BACKEND_URL) => {
     return new Map();
   }
 
-  const res = await fetch(`${stripTrailingSlash(baseUrl)}/api/users/batch`, {
+  const res = await fetch(`${stripTrailingSlash(baseUrl)}/api/backend/users/batch`, {
     method: "POST",
     headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ ids: uniqueIds }),

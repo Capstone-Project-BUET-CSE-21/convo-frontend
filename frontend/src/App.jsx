@@ -33,7 +33,7 @@ const App = () => {
 
     const bootstrapSession = async () => {
       try {
-        const response = await fetch(`${BACKEND_URL}/api/auth/me`, {
+        const response = await fetch(`${BACKEND_URL}/api/backend/auth/me`, {
           method: 'GET',
           headers: {
             Authorization: `Bearer ${token}`,

@@ -43,7 +43,7 @@ export const fetchServerCredentials = async () => {
 // Fetches this user's per-room audio watermark configuration.
 export const fetchWatermarkConfig = async ({ roomId, userId }) => {
   const res = await fetch(
-    `${WATERMARK_URL}/api/watermark/config?roomId=${encodeURIComponent(roomId)}&userId=${encodeURIComponent(userId)}`,
+    `${WATERMARK_URL}/api/audio-watermark/config?roomId=${encodeURIComponent(roomId)}&userId=${encodeURIComponent(userId)}`,
     { method: "GET" }
   );
   if (!res.ok) {

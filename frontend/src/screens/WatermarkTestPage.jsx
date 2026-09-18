@@ -43,7 +43,7 @@ const WatermarkTestPage = () => {
       formData.append("audio", file);
       formData.append("sessionId", sessionId.trim());
 
-      const res = await fetch(`${WATERMARK_URL}/api/watermark/detect`, {
+      const res = await fetch(`${WATERMARK_URL}/api/audio-watermark/detect`, {
         method: "POST",
         body: formData,
       });

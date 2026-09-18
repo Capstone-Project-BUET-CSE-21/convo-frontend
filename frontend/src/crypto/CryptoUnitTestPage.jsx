@@ -76,7 +76,7 @@ export default function CryptoUnitTestPage() {
             const privJwk = await crypto.subtle.exportKey("jwk", priv);
             print(`Local private key's public coords: x=${privJwk.x.slice(0, 20)}... y=${privJwk.y.slice(0, 20)}...`);
 
-            const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/keys/${userId}/ECDH-P256`);
+            const res = await fetch(`${CONFIDENTIALITY_CHAIN_URL}/api/file-sharing/keys/${userId}/ECDH-P256`);
             const { publicKey } = await res.json();
             const pub = await importECDHPublicKey(publicKey);
             const pubJwk = await crypto.subtle.exportKey("jwk", pub);
