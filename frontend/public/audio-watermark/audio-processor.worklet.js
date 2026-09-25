@@ -26,10 +26,15 @@ function _createMulberry32(seed) {
  * stepping through N calls one at a time. This is what lets each frame
  * jump straight to its position within the current cycle, rather than
  * needing to replay every frame since the cycle began.
+ *
+ * Math.imul keeps the product in exact 32-bit arithmetic (mod 2^32, same as
+ * the Java detector's WatermarkDsp.stateAfterDraws). A plain
+ * `numDraws * INC` is a float multiply that silently loses precision past
+ * 2^53, i.e. for cycles longer than ~51s at 48kHz.
  */
 function _stateAfterDraws(initialState, numDraws) {
   const INC = 0x6d2b79f5;
-  return (initialState + numDraws * INC) >>> 0;
+  return (initialState + Math.imul(numDraws, INC)) >>> 0;
 }
 
 function _fft(re, im, invert) {

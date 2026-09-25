@@ -214,10 +214,9 @@ const useMeetingRoomSession = ({
     if (!localMixBusRef.current) return;
 
     try {
-      const config = await fetchWatermarkConfig({ roomId, userId: authUser.id });
       const result = await createWatermarkedPlaybackStream({
         mixedStream: localMixBusRef.current.mixedStream,
-        config,
+        loadConfig: (sampleRate) => fetchWatermarkConfig({ roomId, userId: authUser.id, sampleRate }),
       });
 
       playbackAudioContextRef.current = result.audioContext;

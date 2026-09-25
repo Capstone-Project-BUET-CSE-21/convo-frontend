@@ -40,11 +40,18 @@ export const fetchServerCredentials = async () => {
   return data.credentials;
 };
 
-// Fetches this user's per-room audio watermark configuration.
-export const fetchWatermarkConfig = async ({ roomId, userId }) => {
+// Fetches this user's per-room audio watermark configuration, reporting the
+// sample rate the embedder will run at so detection can match it. The
+// watermark service identifies the user from the bearer token; userId is
+// still sent only because older deployments of that service require it.
+export const fetchWatermarkConfig = async ({ roomId, userId, sampleRate }) => {
+  const token = getAuthToken();
   const res = await fetch(
-    `${WATERMARK_URL}/api/audio-watermark/config?roomId=${encodeURIComponent(roomId)}&userId=${encodeURIComponent(userId)}`,
-    { method: "GET" }
+    `${WATERMARK_URL}/api/audio-watermark/config?roomId=${encodeURIComponent(roomId)}&userId=${encodeURIComponent(userId)}&sampleRate=${encodeURIComponent(Math.round(sampleRate))}`,
+    {
+      method: "GET",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }
   );
   if (!res.ok) {
     throw new Error(`Watermark config request failed: ${res.status}`);

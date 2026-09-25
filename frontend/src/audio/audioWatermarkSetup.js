@@ -75,7 +75,12 @@ export const createLocalMixBus = () => {
   };
 };
 
-export const createWatermarkedPlaybackStream = async ({ mixedStream, config }) => {
+// `loadConfig(sampleRate)` fetches the watermark config. It receives this
+// context's real sample rate because the watermark's frame grid is defined in
+// samples at that rate (it's the device default: often 48kHz, but 44.1kHz or
+// 96kHz on some hardware). The detector must resample recordings back to the
+// same rate, so the backend needs to know it.
+export const createWatermarkedPlaybackStream = async ({ mixedStream, loadConfig }) => {
   const audioContext = new AudioContext();
 
   // Callers may retry this repeatedly while the watermark backend is still
@@ -85,6 +90,8 @@ export const createWatermarkedPlaybackStream = async ({ mixedStream, config }) =
     if (audioContext.state === 'suspended') {
       await audioContext.resume();
     }
+
+    const config = await loadConfig(audioContext.sampleRate);
 
     await audioContext.audioWorklet.addModule('/audio-watermark/audio-processor.worklet.js');
 
