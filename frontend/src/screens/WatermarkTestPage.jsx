@@ -160,7 +160,8 @@ const WatermarkTestPage = () => {
 
                 <div className="wt-rows">
                   <Row label="Session" value={result.sessionId} />
-                  <Row label="Correlation score" value={result.correlationScore} highlight />
+                  <Row label="Consistency (detected at 6.0+)" value={result.consistencyScore} highlight />
+                  <Row label="Correlation score" value={result.correlationScore} />
                   <Row label="Frames analyzed" value={result.totalFramesAnalyzed} />
                   <Row label="Users checked" value={result.totalUsersChecked} />
                 </div>
@@ -168,18 +169,21 @@ const WatermarkTestPage = () => {
                 {result.allUserScores && Object.keys(result.allUserScores).length > 0 && (
                   <>
                     <div className="wt-divider" />
-                    <div className="wt-scores-label">All user scores</div>
+                    <div className="wt-scores-label">All users (consistency · score)</div>
                     <div className="wt-scores">
                       {Object.entries(result.allUserScores).map(([uid, score]) => {
                         const name = result.userDisplayNames?.[uid] || uid;
                         const isWinner = uid === result.detectedUser;
+                        const consistency = result.allUserConsistency?.[uid];
                         return (
                           <div key={uid} className={`wt-score-row${isWinner ? " winner" : ""}`}>
                             <span className="wt-score-name">
                               {isWinner && <span className="wt-winner-dot" />}
                               {name}
                             </span>
-                            <span className="wt-score-val">{score}</span>
+                            <span className="wt-score-val">
+                              {consistency !== undefined ? `${consistency} · ${score}` : score}
+                            </span>
                           </div>
                         );
                       })}
