@@ -7,6 +7,7 @@ import AuthPage from './screens/AuthPage'
 import WatermarkTestPage from './screens/WatermarkTestPage'
 import FileSharingTestPage from './screens/FileSharingTestPage'
 import { clearAuthSession, getAuthToken, getAuthUser, saveAuthSession } from './auth/authSession'
+import { authHeaders } from './auth/authFetch'
 import { BACKEND_URL } from './config/apiConfig'
 import { ensureUserHasKeys } from './crypto/keypair';
 
@@ -35,9 +36,7 @@ const App = () => {
       try {
         const response = await fetch(`${BACKEND_URL}/api/backend/auth/me`, {
           method: 'GET',
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+          headers: authHeaders(),
         });
 
         if (!response.ok) {
