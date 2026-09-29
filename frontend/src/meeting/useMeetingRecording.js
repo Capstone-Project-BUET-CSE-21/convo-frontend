@@ -36,7 +36,7 @@ const encodeWav = (samples, sampleRate) => {
 
 const useMeetingRecording = ({
   localVideoRef,
-  recordingSourceStreamRef, // the watermarked (own + remote) monitor mix
+  recordingSourceStreamRef, // the watermarked playback mix (remote peers only)
   playbackWorkletNodeRef,   // the AudioWorkletNode embedding that watermark
   roomId,
 }) => {
@@ -57,7 +57,8 @@ const useMeetingRecording = ({
     let sourceNode = null;
 
     if (sourceStream?.getAudioTracks().length) {
-      // Primary path: the watermarked mix (own mic + every remote peer).
+      // Primary path: the watermarked playback mix — every remote peer, not
+      // your own mic, which isn't part of playback.
       audioCtx = new AudioContext();
       sourceNode = audioCtx.createMediaStreamSource(sourceStream);
       recordingSourceModeRef.current = "playback";

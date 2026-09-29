@@ -10,8 +10,8 @@ const emitStage = (sessionCtx, stage) => {
   sessionCtx?.onStageChange?.(stage);
 };
 
-// Thrown when the most recent chain-history entry for this file's content
-// fails signature re-verification. Kept distinguishable from generic
+// Thrown when the parent share the server chose for this send is missing
+// from the history or fails signature re-verification. Kept distinguishable from generic
 // network/validation errors so the caller (ChatFileShare's sendStagedFile)
 // can show a message that's specific to "refusing to link to tampered
 // history" instead of the generic send-failure text.

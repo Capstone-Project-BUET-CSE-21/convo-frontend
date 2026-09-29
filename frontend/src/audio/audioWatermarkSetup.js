@@ -1,8 +1,9 @@
-// Watermarks an ALREADY-MIXED audio stream (own mic + all remote peers,
-// summed live by audioLocalMixBus.js). This is the ONLY watermark pipeline
-// in the app now — it exists purely so that whatever reaches your own
-// speakers (and therefore anything a phone/external recorder or the in-app
-// recorder captures) carries your watermark. Peers receive your raw,
+// Watermarks an ALREADY-MIXED audio stream: every remote peer's audio,
+// summed live by the mix bus below. Your own mic is deliberately not in it,
+// since you'd hear yourself back through your speakers. This is the ONLY
+// watermark pipeline in the app — it exists purely so that whatever reaches
+// your own speakers (and therefore anything a phone/external recorder or the
+// in-app recorder captures) carries your watermark. Peers receive your raw,
 // unmodified mic/camera tracks — there is no outgoing watermarking.
 export const createLocalMixBus = () => {
   const audioContext = new AudioContext();

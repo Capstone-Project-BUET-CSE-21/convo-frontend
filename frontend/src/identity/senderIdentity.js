@@ -2,8 +2,8 @@
 //
 // Convo doesn't have a separate "user profile" microservice yet — the
 // meeting already resolves peerId -> display name locally via signaling
-// (see peerNames in screens/MeetingRoom.jsx, populated from the join/
-// signal payloads). That map IS the existing lookup source referenced in
+// (see peerNames in meeting/useMeetingRoomSession.js, filled from the
+// identity convo-backend stamps on relayed offers/answers). That map IS the existing lookup source referenced in
 // manual §5.2 Task 1. If a name isn't in it yet (e.g. it arrived slightly
 // after the file did), we fall back to the fromName carried in the
 // transfer's own metadata, then finally to a generic label.

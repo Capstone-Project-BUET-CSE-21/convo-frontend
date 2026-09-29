@@ -23,8 +23,8 @@ const MeetingChat = ({ isOpen, onClose, wsRef, dataChannelsRef, roomId, peers, p
   const inputRef = useRef(null);
   const fileShareRef = useRef(null);
 
-  // Fires only when the bubble's explicit Download button is clicked (not
-  // on preview clicks) — records the event against the confidentiality
+  // Fires when a received file's image/doc link is clicked to save it (see
+  // ChatFileBubble) — records the event against the confidentiality
   // chain service. Best-effort: the user's actual file save (handled
   // inside ChatFileBubble itself) never waits on this.
   const handleFileDownload = (contentHash) => {

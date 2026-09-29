@@ -3,7 +3,7 @@
 // same authHeaders() pattern, same "caller supplies baseUrl" shape as the
 // rest of this module's fetch calls.
 //
-// Fire-and-forget by design: the caller (ChatFileBubble's download button)
+// Fire-and-forget by design: the caller (a click on ChatFileBubble's save link)
 // must not have the user's actual file save blocked or delayed by this
 // network call, so this always resolves/rejects independently of the save.
 

@@ -62,16 +62,6 @@
   border-left-color: var(--red);
 }
 
-.file-trace-hop__meeting {
-  font-weight: 600;
-  font-size: 12px;
-}
-
-.file-trace-hop__origin-note {
-  font-weight: 400;
-  color: var(--ink-subtle, rgba(255, 255, 255, 0.6));
-}
-
 .file-trace-hop__person,
 .file-trace-hop__file,
 .file-trace-hop__time {
@@ -88,10 +78,4 @@
 .file-trace-hop__flag--broken {
   color: var(--red);
   background: rgba(229, 72, 77, 0.12);
-}
-
-.file-trace-screen__footnote {
-  margin-top: 16px;
-  font-size: 11px;
-  color: var(--ink-subtle, rgba(255, 255, 255, 0.6));
 }

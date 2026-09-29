@@ -6,13 +6,13 @@
 // signing on top of it. Checks against the durable server-side history,
 // never a local in-memory reconstruction.
 //
-// ChainHistoryResponseDto now includes fileHash + signature (see
+// ChainHistoryResponseDto includes fileHash + signature (see
 // convo-file-sharing's TransferMetadataService.getChainHistory), so
 // verifyHop does real per-hop ECDSA signature re-verification, not just a
 // content-hash sanity check. The DTO is flat (transferId, sessionId,
 // senderId, fileName, fileSize, mimeType, timestamp, previousHash — no
-// nested "metadata" object), so the provenance block Canonicalizer.java /
-// canonicalize.js expect is reassembled from those fields below.
+// nested "metadata" object), so the provenance block canonicalize.js
+// expects is reassembled from those fields below.
 //
 // There used to also be an isAuthorizedHop check here (was the sender a
 // recorded recipient of the previous hop, or a session participant for a
@@ -38,9 +38,8 @@ export const makeVerifyHop = (contentHash) => async (entry) => {
     return { valid: false, reason: "content-hash-mismatch" };
   }
 
-  // Full signature re-verification per hop, now that fileHash/signature
-  // are on the DTO. Reassemble the flat response fields into the same
-  // shape Canonicalizer.java / canonicalize.js sign against — field names
+  // Full signature re-verification per hop. Reassemble the flat response
+  // fields into the same shape canonicalize.js signs against — field names
   // must match exactly (fileName, fileSize, mimeType, previousHash,
   // senderId, sessionId, timestamp, transferId).
   if (entry.fileHash && entry.signature) {

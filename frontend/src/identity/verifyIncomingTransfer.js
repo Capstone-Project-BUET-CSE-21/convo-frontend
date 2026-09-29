@@ -1,6 +1,6 @@
 // 5.2 — Orchestrates verification + identity mapping for a received file.
 //
-// This is the single entry point screens/MeetingRoom.jsx calls once a file
+// This is the single entry point meeting/dataChannelTransfer.js calls once a file
 // has been reassembled and unwrapped. It does NOT re-implement hashing,
 // signing, or chain-linking — it just calls each module in the order the
 // manual's "Build order" diagram specifies, and only proceeds to identity
