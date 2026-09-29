@@ -421,9 +421,9 @@ const useMeetingRoomSession = ({
       ws.onmessage = async (event) => {
         const data = JSON.parse(event.data);
         // Who sent a relayed message, as authenticated by convo-backend — never
-        // the userId/name the sender wrote into its own payload, which a
-        // modified client could fake. The payload values are only a fallback
-        // for a backend that predates the stamped fields.
+        // the userId/name the sender wrote into its own payload. The payload
+        // values are only a fallback for a backend that predates the stamped
+        // fields.
         const senderUserId = data.fromUserId ?? data.payload?.userId;
         const senderName = data.fromName || data.payload?.name;
         switch (data.type) {
