@@ -263,7 +263,11 @@ const ChatFileShare = forwardRef(function ChatFileShare(
         onStageError(err.message);
         return;
       }
-      throw err;
+      // Anything else (metadata/key lookup failure, missing private key,
+      // channel timeout...) still has to reach the user — nothing upstream
+      // catches it, so rethrowing would only land in the console.
+      console.error("File send failed:", err);
+      onStageError(`Couldn't send that file: ${err.message}`);
     } finally {
       onProgressChange(null);
     }
