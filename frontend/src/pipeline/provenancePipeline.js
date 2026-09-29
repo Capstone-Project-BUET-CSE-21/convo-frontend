@@ -46,10 +46,11 @@ export const resolvePreviousHash = async (contentHash, baseUrl) => {
 export const requestMetadataBlock = async (sessionCtx, file, previousHash) => {
   // Who this hop is actually going to (already resolved to user IDs by the
   // caller — see ChatFileShare.jsx's sessionCtx.recipientIds, built from
-  // peerUserIds). Required and non-empty on the backend: this is what a
-  // later hop's authorization check is measured against instead of mere
-  // session attendance (see identity/traceVerification.js's
-  // makeIsAuthorizedHop and convo-file-sharing's TransferRecipient).
+  // peerUserIds). Required and non-empty on the backend, stored as
+  // TransferRecipient — informational record of who a file was addressed
+  // to. Not used to gate anything client-side: there used to be an
+  // authorization check measured against this, removed deliberately (see
+  // identity/traceVerification.js for why).
   const recipients = Array.isArray(sessionCtx.recipientIds) ? sessionCtx.recipientIds : [];
   if (recipients.length === 0) {
     throw new Error("Cannot request transfer metadata without at least one recipient");

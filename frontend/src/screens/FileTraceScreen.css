@@ -40,10 +40,6 @@
   border-left-color: var(--red);
 }
 
-.file-trace-hop--unauthorized {
-  border-left-color: #c98a1f;
-}
-
 .file-trace-hop__meeting {
   font-weight: 600;
   font-size: 12px;
@@ -70,11 +66,6 @@
 .file-trace-hop__flag--broken {
   color: var(--red);
   background: rgba(229, 72, 77, 0.12);
-}
-
-.file-trace-hop__flag--unauthorized {
-  color: #c98a1f;
-  background: rgba(201, 138, 31, 0.12);
 }
 
 .file-trace-screen__footnote {

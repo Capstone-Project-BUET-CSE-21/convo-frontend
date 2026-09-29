@@ -1,7 +1,7 @@
 // Records a download event against convo-file-sharing's
-// POST /api/file-sharing/sessions/{sessionId}/downloads (see FileDownloadController),
-// mirroring fetchSessionParticipants in identity/traceVerification.js —
-// same authHeaders() pattern, same "caller supplies baseUrl" shape.
+// POST /api/file-sharing/sessions/{sessionId}/downloads (see FileDownloadController) —
+// same authHeaders() pattern, same "caller supplies baseUrl" shape as the
+// rest of this module's fetch calls.
 //
 // Fire-and-forget by design: the caller (ChatFileBubble's download button)
 // must not have the user's actual file save blocked or delayed by this

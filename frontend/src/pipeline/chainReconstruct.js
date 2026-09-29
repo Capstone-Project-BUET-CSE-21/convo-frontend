@@ -133,7 +133,7 @@ export const resolvePriorBlockDurable = async (contentHash, previousHash, baseUr
   return { priorBlock, chainBroken };
 }
 
-export const walkChain = async (startEntry, chainIndex, { verifyHop, isAuthorizedHop }) => {
+export const walkChain = async (startEntry, chainIndex, { verifyHop }) => {
   const hops = [];
   let current = startEntry;
 
@@ -142,15 +142,6 @@ export const walkChain = async (startEntry, chainIndex, { verifyHop, isAuthorize
     if (!verification.valid) {
       hops.push({ entry: current, status: "broken", reason: verification.reason ?? "verification-failed" });
       return { hops, stopReason: "broken" };
-    }
-
-    // chainIndex is passed through so isAuthorizedHop can look up the
-    // immediate ancestor's recipient list (real per-file ACL) instead of
-    // only having the current hop in isolation — see makeIsAuthorizedHop.
-    const authorized = await isAuthorizedHop(current, chainIndex);
-    if (!authorized) {
-      hops.push({ entry: current, status: "unauthorized", reason: "sender-not-a-permitted-participant" });
-      return { hops, stopReason: "unauthorized" };
     }
 
     hops.push({ entry: current, status: "ok", reason: null });
@@ -172,11 +163,11 @@ export const walkChain = async (startEntry, chainIndex, { verifyHop, isAuthorize
   return { hops, stopReason: "root" };
 }
 
-export const traceChain = async (contentHash, startFileHash, baseUrl, { verifyHop, isAuthorizedHop }) => {
+export const traceChain = async (contentHash, startFileHash, baseUrl, { verifyHop }) => {
   const chainIndex = await loadChainIndex(contentHash, baseUrl);
   const startEntry = chainIndex.get(startFileHash);
   if (!startEntry) {
     throw new Error(`Starting fileHash "${startFileHash}" not found in chain history for this content.`);
   }
-  return walkChain(startEntry, chainIndex, { verifyHop, isAuthorizedHop });
+  return walkChain(startEntry, chainIndex, { verifyHop });
 }

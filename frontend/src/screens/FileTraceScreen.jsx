@@ -3,15 +3,18 @@ import PropTypes from "prop-types";
 import "./FileTraceScreen.css";
 
 import { traceChain } from "../pipeline/chainReconstruct";
-import { makeVerifyHop, makeIsAuthorizedHop } from "../identity/traceVerification";
+import { makeVerifyHop } from "../identity/traceVerification";
 import { formatRelativeTime } from "../identity/senderIdentity";
 import { fetchUserDisplayNames } from "../identity/userLookup";
 import { CONFIDENTIALITY_CHAIN_URL, BACKEND_URL } from "../config/apiConfig";
 
 // 5.3 — The trace/lineage screen: meeting-by-meeting, person-by-person,
-// with "chain broken here" and "unauthorized person here" rendered as
-// visually distinct states (matching Suchi's walkChain stopReason split
-// and Debashri's REJECTION_COPY additions in ProvenanceBadge).
+// with "chain broken here" rendered as a visually distinct state (matching
+// Suchi's walkChain stopReason). There used to also be an "unauthorized
+// person here" state — removed along with isAuthorizedHop (see
+// identity/traceVerification.js for why: it could only confirm sharing
+// that happened through Convo itself, so legitimate sharing through any
+// other channel looked identical to an actual leak).
 //
 // @param {string} contentHash   content hash of the file being traced
 // @param {string} startFileHash fileHash of the hop the user opened this from
@@ -26,7 +29,6 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
   const [resolvedNames, setResolvedNames] = useState(new Map());
 
   const verifyHop = useMemo(() => makeVerifyHop(contentHash), [contentHash]);
-  const isAuthorizedHop = useMemo(() => makeIsAuthorizedHop(CONFIDENTIALITY_CHAIN_URL), []);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,7 +41,7 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
           contentHash,
           startFileHash,
           CONFIDENTIALITY_CHAIN_URL,
-          { verifyHop, isAuthorizedHop }
+          { verifyHop }
         );
         if (!cancelled) {
           setState({ status: "done", hops, stopReason, error: null });
@@ -72,7 +74,7 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
     return () => {
       cancelled = true;
     };
-  }, [contentHash, startFileHash, verifyHop, isAuthorizedHop, peerNames]);
+  }, [contentHash, startFileHash, verifyHop, peerNames]);
 
   const nameFor = (userId) =>
     peerNames?.get?.(userId) || resolvedNames.get(userId) || `User ${String(userId).slice(0, 8)}`;
@@ -102,7 +104,6 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
         {chronologicalHops.map((hop, idx) => {
           const entry = hop.entry;
           const isBroken = hop.status === "broken";
-          const isUnauthorized = hop.status === "unauthorized";
 
           return (
             <li
@@ -137,13 +138,6 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
                   ⚠ Chain broken here — {hop.reason === "missing-link"
                     ? "the previous link in the chain couldn't be found."
                     : "this hop failed verification (tampered or corrupted)."}
-                </div>
-              )}
-
-              {isUnauthorized && (
-                <div className="file-trace-hop__flag file-trace-hop__flag--unauthorized" role="alert">
-                  ⚠ Unauthorized person here — {nameFor(entry?.senderId)} wasn’t a permitted
-                  participant of that session when this file was shared.
                 </div>
               )}
             </li>
