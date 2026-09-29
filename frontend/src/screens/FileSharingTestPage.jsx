@@ -224,7 +224,6 @@ const FileSharingTestPage = () => {
             <div className="fst-divider" />
             <div className="fst-scores-label">Real history found</div>
             <Row label="Shares on record" value={chain.shareCount} />
-            <Row label="Content hash" value={`${chain.contentHash.slice(0, 16)}…`} />
 
             <div className="fst-divider" />
             <FileTraceScreen
@@ -235,9 +234,6 @@ const FileSharingTestPage = () => {
 
         {mode === "downloads" && downloadHash && !error && (
           <div className="fst-chain-summary">
-            <div className="fst-divider" />
-            <Row label="Content hash" value={`${downloadHash.slice(0, 16)}…`} />
-
             <div className="fst-divider" />
             <div className="fst-scores-label">Recorded downloads for this file</div>
             {downloads && downloads.length > 0 ? (
