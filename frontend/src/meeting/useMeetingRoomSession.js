@@ -420,6 +420,12 @@ const useMeetingRoomSession = ({
 
       ws.onmessage = async (event) => {
         const data = JSON.parse(event.data);
+        // Who sent a relayed message, as authenticated by convo-backend — never
+        // the userId/name the sender wrote into its own payload, which a
+        // modified client could fake. The payload values are only a fallback
+        // for a backend that predates the stamped fields.
+        const senderUserId = data.fromUserId ?? data.payload?.userId;
+        const senderName = data.fromName || data.payload?.name;
         switch (data.type) {
           case "room-not-found":
             alert("Room not found.");
@@ -464,7 +470,7 @@ const useMeetingRoomSession = ({
             // initiator and don't already have a working connection.
             if (manager.isInitiator(data.from)) {
               if (!knownPeersRef.current.has(data.from)) {
-                knownPeersRef.current.set(data.from, "");
+                knownPeersRef.current.set(data.from, senderUserId ?? "");
               }
               if (!manager.isConnectionUsable(data.from)) {
                 if (pcRef.current.has(data.from)) manager.removePeer(data.from);
@@ -473,7 +479,7 @@ const useMeetingRoomSession = ({
             }
             break;
           case "offer":
-            await manager.handleOffer(data.from, data.payload.name, data.payload.offer, data.payload.videoEnabled, data.payload.userId, data.payload.audioEnabled);
+            await manager.handleOffer(data.from, senderName, data.payload.offer, data.payload.videoEnabled, senderUserId, data.payload.audioEnabled);
             break;
           case "answer": {
             const pc = pcRef.current.get(data.from);
@@ -481,8 +487,8 @@ const useMeetingRoomSession = ({
               await pc.setRemoteDescription(new RTCSessionDescription(data.payload.answer));
               await manager.processQueuedCandidates(data.from);
             }
-            setPeerNames((prev) => new Map(prev).set(data.from, data.payload.name));
-            setPeerUserIds((prev) => new Map(prev).set(data.from, data.payload.userId));
+            setPeerNames((prev) => new Map(prev).set(data.from, senderName));
+            setPeerUserIds((prev) => new Map(prev).set(data.from, senderUserId));
             setPeerVideoStates((prev) => new Map(prev).set(data.from, data.payload.videoEnabled !== false));
             setPeerAudioStates((prev) => new Map(prev).set(data.from, data.payload.audioEnabled !== false));
             break;
