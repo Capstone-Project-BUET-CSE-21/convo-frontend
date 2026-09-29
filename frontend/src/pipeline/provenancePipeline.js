@@ -22,35 +22,30 @@ export class ProvenanceLinkError extends Error {
   }
 }
 
-// Looks up prior shares of this exact file content and, if found, verifies
-// the most recent entry before trusting it as the chain's previousHash.
-// Returns null for a fresh root (no prior shares, or none linkable).
-export const resolvePreviousHash = async (contentHash, baseUrl) => {
-  const history = await fetchChainHistory(contentHash, baseUrl);
-  if (!history || history.length === 0) {
-    return null;
-  }
+// The server picks which earlier share this one continues (the latest share
+// of this content that named the sender as a recipient — see
+// TransferMetadataService.createPendingTransfer) and returns it as
+// metadata.previousHash. Before signing on top of it, re-verify that parent
+// so a send never links onto tampered history.
+export const verifyParentShare = async (contentHash, previousHash, baseUrl) => {
+  if (!previousHash) return;
 
-  // findByContentHashOrderByTimestampAsc on the server — last entry is latest.
-  const latest = history[history.length - 1];
-  const verification = await makeVerifyHop(contentHash)(latest);
+  const history = await fetchChainHistory(contentHash, baseUrl);
+  const parent = (history ?? []).find((entry) => entry.fileHash === previousHash);
+  const verification = parent
+    ? await makeVerifyHop(contentHash)(parent)
+    : { valid: false, reason: "parent share not found" };
   if (!verification.valid) {
     throw new ProvenanceLinkError(
       `Refusing to link to prior share: ${verification.reason ?? "verification failed"}`
     );
   }
-
-  return latest.fileHash;
 };
 
-export const requestMetadataBlock = async (sessionCtx, file, previousHash) => {
-  // Who this hop is actually going to (already resolved to user IDs by the
-  // caller — see ChatFileShare.jsx's sessionCtx.recipientIds, built from
-  // peerUserIds). Required and non-empty on the backend, stored as
-  // TransferRecipient — informational record of who a file was addressed
-  // to. Not used to gate anything client-side: there used to be an
-  // authorization check measured against this, removed deliberately (see
-  // identity/traceVerification.js for why).
+export const requestMetadataBlock = async (sessionCtx, file, contentHash) => {
+  // Who this share is going to (already resolved to user IDs by the caller —
+  // see ChatFileShare.jsx's sessionCtx.recipientIds). A later share by one of
+  // these recipients is attached under this one in the file's history.
   const recipients = Array.isArray(sessionCtx.recipientIds) ? sessionCtx.recipientIds : [];
   if (recipients.length === 0) {
     throw new Error("Cannot request transfer metadata without at least one recipient");
@@ -65,7 +60,7 @@ export const requestMetadataBlock = async (sessionCtx, file, previousHash) => {
       fileName: file.name,
       fileSize: file.size,
       mimeType: file.type || "application/octet-stream",
-      previousHash: previousHash ?? null,
+      contentHash,
       recipients,
     }),
   });
@@ -133,12 +128,12 @@ export const requestEncryptionKeyBundle = async (sessionCtx) => {
 export async function prepareFileForTransfer(file, sessionCtx = {}) {
   const fileBuffer = await file.arrayBuffer();
 
-  emitStage(sessionCtx, { phase: "metadata", label: "Checking prior shares", progress: 0 });
+  emitStage(sessionCtx, { phase: "metadata", label: "Fetching provenance metadata", progress: 0 });
   const contentHash = await computeContentHash(fileBuffer);
-  const previousHash = await resolvePreviousHash(contentHash, CONFIDENTIALITY_CHAIN_URL);
+  const metadata = await requestMetadataBlock(sessionCtx, file, contentHash);
 
-  emitStage(sessionCtx, { phase: "metadata", label: "Fetching provenance metadata", progress: 5 });
-  const metadata = await requestMetadataBlock(sessionCtx, file, previousHash);
+  emitStage(sessionCtx, { phase: "metadata", label: "Checking prior shares", progress: 5 });
+  await verifyParentShare(contentHash, metadata.previousHash, CONFIDENTIALITY_CHAIN_URL);
 
   emitStage(sessionCtx, { phase: "keys", label: "Verifying confidentiality keys", progress: 10 });
   const encryptionKeys = await requestEncryptionKeyBundle(sessionCtx);
