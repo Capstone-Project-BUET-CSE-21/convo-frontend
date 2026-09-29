@@ -1,53 +1,57 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import PropTypes from "prop-types";
 import "./FileTraceScreen.css";
 
-import { traceChain } from "../pipeline/chainReconstruct";
+import { buildSharePaths, fetchChainHistory } from "../pipeline/chainReconstruct";
 import { makeVerifyHop } from "../identity/traceVerification";
 import { formatRelativeTime } from "../identity/senderIdentity";
 import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
-// 5.3 — The trace/lineage screen: meeting-by-meeting, person-by-person,
-// with "chain broken here" rendered as a visually distinct state (matching
-// Suchi's walkChain stopReason). There used to also be an "unauthorized
-// person here" state — removed along with isAuthorizedHop (see
-// identity/traceVerification.js for why: it could only confirm sharing
-// that happened through Convo itself, so legitimate sharing through any
-// other channel looked identical to an actual leak).
+// The file's full share history as paths of real hand-offs, e.g.
+//   Charlie → Alice → Dave
+//   Charlie → Bob
+// Every share is re-verified (content hash + signature against the sender's
+// key history); a share that fails is flagged on every path it appears in.
+// Names come from convo-file-sharing's response (resolved server-side).
 //
-// Sender display names come straight from convo-file-sharing's chain
-// response (senderDisplayName — resolved server-side there, via its own
-// call to convo-backend) rather than a second call this component used to
-// make to convo-backend itself. peerNames (live meeting signaling) still
-// wins when both have an entry, since it's the freshest source for a
-// sender in the viewer's own current meeting.
+// A path started by someone other than whoever first brought the file into
+// Convo gets a neutral note: that person had the file with no Convo record
+// of receiving it. It's deliberately not a warning — they may well have got
+// it legitimately by email or USB, and Convo can't tell.
 //
-// @param {string} contentHash   content hash of the file being traced
-// @param {string} startFileHash fileHash of the hop the user opened this from
-// @param {Map}    [peerNames]   peerId -> display name, if the caller has one handy
-const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
-  const [state, setState] = useState({ status: "loading", hops: [], stopReason: null, error: null });
+// @param {string} contentHash content hash of the file being traced
+const EMPTY = { status: "loading", paths: [], failures: new Map(), introducerId: null, error: null };
 
-  const verifyHop = useMemo(() => makeVerifyHop(contentHash), [contentHash]);
+const FileTraceScreen = ({ contentHash }) => {
+  const [state, setState] = useState(EMPTY);
 
   useEffect(() => {
     let cancelled = false;
 
     const run = async () => {
-      setState({ status: "loading", hops: [], stopReason: null, error: null });
+      setState(EMPTY);
       try {
-        const { hops, stopReason } = await traceChain(
-          contentHash,
-          startFileHash,
-          CONFIDENTIALITY_CHAIN_URL,
-          { verifyHop }
-        );
+        const entries = await fetchChainHistory(contentHash, CONFIDENTIALITY_CHAIN_URL);
+        const verifyHop = makeVerifyHop(contentHash);
+        const results = await Promise.all(entries.map((entry) => verifyHop(entry)));
+        const failures = new Map();
+        entries.forEach((entry, i) => {
+          if (!results[i].valid) failures.set(entry.fileHash, results[i].reason ?? "verification-failed");
+        });
+
+        const paths = buildSharePaths(entries)
+          .sort((a, b) => new Date(a[0].share.timestamp) - new Date(b[0].share.timestamp));
+
+        // History comes back oldest first, and the oldest share can't have
+        // a parent, so its sender is whoever first brought the file in.
+        const introducerId = entries[0]?.senderId ?? null;
+
         if (!cancelled) {
-          setState({ status: "done", hops, stopReason, error: null });
+          setState({ status: "done", paths, failures, introducerId, error: null });
         }
       } catch (err) {
         if (!cancelled) {
-          setState({ status: "error", hops: [], stopReason: null, error: err.message });
+          setState({ ...EMPTY, status: "error", error: err.message });
         }
       }
     };
@@ -56,10 +60,11 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
     return () => {
       cancelled = true;
     };
-  }, [contentHash, startFileHash, verifyHop]);
+  }, [contentHash]);
 
-  const nameFor = (userId, chainDisplayName) =>
-    peerNames?.get?.(userId) || chainDisplayName || `User ${String(userId).slice(0, 8)}`;
+  const nameOf = (userId, displayName) => displayName || `User ${String(userId).slice(0, 8)}`;
+  const senderName = (share) => nameOf(share.senderId, share.senderDisplayName);
+  const recipientName = (recipient) => (recipient ? nameOf(recipient.userId, recipient.displayName) : "—");
 
   if (state.status === "loading") {
     return <div className="file-trace-screen file-trace-screen--loading">Tracing file history…</div>;
@@ -73,75 +78,62 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
     );
   }
 
-  // Walk order is most-recent-hop-first (walkChain follows previousHash
-  // backwards); reverse so the timeline reads chronologically, oldest
-  // (origin) meeting first.
-  const chronologicalHops = [...state.hops].reverse();
-
   return (
     <div className="file-trace-screen">
       <h2 className="file-trace-screen__title">File history</h2>
 
       <ol className="file-trace-screen__timeline">
-        {chronologicalHops.map((hop, idx) => {
-          const entry = hop.entry;
-          const isBroken = hop.status === "broken";
+        {state.paths.map((path) => {
+          const route = [senderName(path[0].share), ...path.map((step) => recipientName(step.recipient))];
+          const key = path.map((step) => `${step.share.fileHash}:${step.recipient?.userId}`).join("|");
+          const noConvoRecord = path[0].share.senderId !== state.introducerId;
 
           return (
-            <li
-              key={entry ? `${entry.sessionId}-${entry.transferId ?? idx}` : `broken-${idx}`}
-              className={`file-trace-hop file-trace-hop--${hop.status}`}
-            >
-              {entry ? (
-                <>
-                  <div className="file-trace-hop__meeting">
-                    Session {entry.sessionId}
-                    {entry.originSessionId && entry.originSessionId !== entry.sessionId && (
-                      <span className="file-trace-hop__origin-note">
-                        {" "}
-                        (originally signed in session {entry.originSessionId})
-                      </span>
-                    )}
-                  </div>
-                  <div className="file-trace-hop__person">
-                    Shared by <strong>{nameFor(entry.senderId, entry.senderDisplayName)}</strong>
-                    {entry.timestamp && (
-                      <span className="file-trace-hop__time"> · {formatRelativeTime(entry.timestamp)}</span>
-                    )}
-                  </div>
-                  <div className="file-trace-hop__file">{entry.fileName}</div>
-                </>
-              ) : (
-                <div className="file-trace-hop__meeting">Earlier hop</div>
-              )}
-
-              {isBroken && (
-                <div className="file-trace-hop__flag file-trace-hop__flag--broken" role="alert">
-                  ⚠ Chain broken here — {hop.reason === "missing-link"
-                    ? "the previous link in the chain couldn't be found."
-                    : "this hop failed verification (tampered or corrupted)."}
+            <li key={key} className="file-trace-path">
+              <div className="file-trace-path__route">{route.join(" → ")}</div>
+              {noConvoRecord && (
+                <div className="file-trace-path__note">
+                  {senderName(path[0].share)} had this file with no Convo record of receiving it —
+                  it may have come from outside Convo.
                 </div>
               )}
+              <ol className="file-trace-path__steps">
+                {path.map((step) => {
+                  const failure = state.failures.get(step.share.fileHash);
+                  return (
+                    <li
+                      key={`${step.share.fileHash}:${step.recipient?.userId}`}
+                      className={`file-trace-hop${failure ? " file-trace-hop--broken" : ""}`}
+                    >
+                      <div className="file-trace-hop__person">
+                        <strong>{senderName(step.share)}</strong> shared with{" "}
+                        <strong>{recipientName(step.recipient)}</strong>
+                        {step.share.timestamp && (
+                          <span className="file-trace-hop__time"> · {formatRelativeTime(step.share.timestamp)}</span>
+                        )}
+                      </div>
+                      <div className="file-trace-hop__file">
+                        Session {step.share.sessionId} · {step.share.fileName}
+                      </div>
+                      {failure && (
+                        <div className="file-trace-hop__flag file-trace-hop__flag--broken" role="alert">
+                          ⚠ This share failed verification (tampered or corrupted): {failure}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
             </li>
           );
         })}
       </ol>
-
-      {state.stopReason === "root" && (
-        <p className="file-trace-screen__footnote">Traced back to the file’s original share.</p>
-      )}
     </div>
   );
 };
 
 FileTraceScreen.propTypes = {
   contentHash: PropTypes.string.isRequired,
-  startFileHash: PropTypes.string.isRequired,
-  peerNames: PropTypes.instanceOf(Map),
-};
-
-FileTraceScreen.defaultProps = {
-  peerNames: null,
 };
 
 export default FileTraceScreen;

@@ -54,7 +54,7 @@ const FileSharingTestPage = () => {
 
   // Share-chain tab state
   const [notFound, setNotFound] = useState(false);
-  const [chain, setChain] = useState(null); // { contentHash, startFileHash, hopCount }
+  const [chain, setChain] = useState(null); // { contentHash, shareCount }
 
   // Downloads tab state
   const [downloadHash, setDownloadHash] = useState(null);
@@ -87,10 +87,7 @@ const FileSharingTestPage = () => {
       const fileBuffer = await file.arrayBuffer();
       const contentHash = await computeContentHash(fileBuffer);
 
-      // findByContentHashOrderByTimestampAsc on the server (see
-      // pipeline/chainReconstruct.js's fetchChainHistory) — entries come
-      // back oldest first, so the last element is the most recent real
-      // share/forward of this exact file content.
+      // Every completed share of this exact content, all trees of it.
       const entries = await fetchChainHistory(contentHash, CONFIDENTIALITY_CHAIN_URL);
 
       if (!entries || entries.length === 0) {
@@ -98,12 +95,7 @@ const FileSharingTestPage = () => {
         return;
       }
 
-      const latest = entries[entries.length - 1];
-      setChain({
-        contentHash,
-        startFileHash: latest.fileHash,
-        hopCount: entries.length,
-      });
+      setChain({ contentHash, shareCount: entries.length });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -152,7 +144,7 @@ const FileSharingTestPage = () => {
           <h1 className="fst-title">File Sharing &amp; Trace Test</h1>
           <p className="fst-subtitle">
             {mode === "share"
-              ? "Upload a file you actually sent or received through Convo. This looks up its real transfer history — the real users and real sessions it actually passed through — and traces the chain back to its original share."
+              ? "Upload a file you actually sent or received through Convo. This looks up its real transfer history — the real users and real sessions it actually passed through — and shows every path it took, from whoever introduced it to everyone it reached."
               : "Upload a file you downloaded through Convo. This looks up every real download event recorded for that exact file — who downloaded it, and when."}
           </p>
         </div>
@@ -231,13 +223,12 @@ const FileSharingTestPage = () => {
           <div className="fst-chain-summary">
             <div className="fst-divider" />
             <div className="fst-scores-label">Real history found</div>
-            <Row label="Hops on record" value={chain.hopCount} />
+            <Row label="Shares on record" value={chain.shareCount} />
             <Row label="Content hash" value={`${chain.contentHash.slice(0, 16)}…`} />
 
             <div className="fst-divider" />
             <FileTraceScreen
               contentHash={chain.contentHash}
-              startFileHash={chain.startFileHash}
             />
           </div>
         )}

@@ -49,35 +49,9 @@ export const unwrapPayload = (buffer) => {
   return parseHeader(buffer);
 }
 
-// pipeline/chainReconstruct.js
 // ---------------------------------------------------------------
-// v1 API — NOTE: not used for receive-side verification anymore.
-// It only reflects blocks seen in-session, which produces false
-// "chain broken" results the first time a file crosses sessions,
-// and a false PASS on the very next attempt once that block gets
-// cached locally (see identity/verifyIncomingTransfer.js — this
-// was the actual root cause of the Meeting A -> Meeting B bug).
-// Kept only as optional local scaffolding (e.g. optimistic UI),
-// never as the verification source of truth. Use
-// resolvePriorBlockDurable for verification.
-// ---------------------------------------------------------------
-export const createChainStore = () => {
-  return new Map();
-}
-
-export const reconstructChain = (signedBlock, chainStore) => {
-  const { previousHash } = signedBlock.metadata;
-  const priorBlock = previousHash ? chainStore.get(previousHash) ?? null : null;
-  const chainBroken = Boolean(previousHash) && priorBlock === null;
-
-  chainStore.set(signedBlock.fileHash, signedBlock);
-
-  return { signedBlock, priorBlock, chainBroken };
-}
-
-// ---------------------------------------------------------------
-// v2 API — backend-backed. Used by the trace/lineage screen AND
-// (as of this change) by receive-side verification.
+// Backend-backed chain history. Used by the trace screen and by
+// receive-side verification.
 // ---------------------------------------------------------------
 export const fetchChainHistory = async (contentHash, baseUrl) => {
   // GET /api/file-sharing/transfer/metadata/history/{contentHash} — TransferMetadataController
@@ -115,8 +89,7 @@ export const loadChainIndex = async (contentHash, baseUrl) => {
 // Receive-side durable linkage resolution. Resolves previousHash
 // against the backend's authoritative chain history for this
 // file's content, not against anything seen locally in-browser.
-// This is what verifyIncomingTransfer.js calls in place of
-// reconstructChain().
+// Called by verifyIncomingTransfer.js.
 // ---------------------------------------------------------------
 export const resolvePriorBlockDurable = async (contentHash, previousHash, baseUrl) => {
   if (!previousHash) {
@@ -133,41 +106,52 @@ export const resolvePriorBlockDurable = async (contentHash, previousHash, baseUr
   return { priorBlock, chainBroken };
 }
 
-export const walkChain = async (startEntry, chainIndex, { verifyHop }) => {
-  const hops = [];
-  let current = startEntry;
+// A file's history is a forest: a share continues the earlier share its
+// sender received the file on, and a share by someone who never received it
+// through Convo starts its own tree (see convo-file-sharing's
+// TransferMetadataService.createPendingTransfer). This turns the flat
+// history into every root-to-leaf path, one step per (share, recipient), so
+//   Charlie→[Alice], Charlie→[Bob], Alice→[Dave]
+// becomes
+//   [Charlie→Alice, Alice→Dave] and [Charlie→Bob].
+//
+// A share only continues its parent if its sender was one of the parent's
+// recipients. Shares recorded before the server chose parents this way were
+// linked to whatever was newest; this rule shows those exactly as the
+// current design would have recorded them, instead of inventing hand-offs.
+export const buildSharePaths = (entries) => {
+  const byFileHash = buildChainIndex(entries);
+  const continues = (entry) => {
+    const parent = entry.previousHash ? byFileHash.get(entry.previousHash) : null;
+    return Boolean(parent?.recipients?.some((r) => r.userId === entry.senderId));
+  };
 
-  while (current) {
-    const verification = await verifyHop(current);
-    if (!verification.valid) {
-      hops.push({ entry: current, status: "broken", reason: verification.reason ?? "verification-failed" });
-      return { hops, stopReason: "broken" };
+  const childrenOf = new Map();
+  const roots = [];
+  for (const entry of entries) {
+    if (continues(entry)) {
+      const siblings = childrenOf.get(entry.previousHash) ?? [];
+      siblings.push(entry);
+      childrenOf.set(entry.previousHash, siblings);
+    } else {
+      roots.push(entry);
     }
-
-    hops.push({ entry: current, status: "ok", reason: null });
-
-    const previousHash = current.previousHash;
-    if (!previousHash) {
-      return { hops, stopReason: "root" };
-    }
-
-    const prior = chainIndex.get(previousHash);
-    if (!prior) {
-      hops.push({ entry: null, status: "broken", reason: "missing-link", missingHash: previousHash });
-      return { hops, stopReason: "broken" };
-    }
-
-    current = prior;
   }
 
-  return { hops, stopReason: "root" };
-}
-
-export const traceChain = async (contentHash, startFileHash, baseUrl, { verifyHop }) => {
-  const chainIndex = await loadChainIndex(contentHash, baseUrl);
-  const startEntry = chainIndex.get(startFileHash);
-  if (!startEntry) {
-    throw new Error(`Starting fileHash "${startFileHash}" not found in chain history for this content.`);
-  }
-  return walkChain(startEntry, chainIndex, { verifyHop });
-}
+  const paths = [];
+  const extend = (share, steps) => {
+    const recipients = share.recipients?.length ? share.recipients : [null];
+    for (const recipient of recipients) {
+      const path = [...steps, { share, recipient }];
+      const next = (childrenOf.get(share.fileHash) ?? [])
+        .filter((child) => recipient && child.senderId === recipient.userId);
+      if (next.length === 0) {
+        paths.push(path);
+      } else {
+        next.forEach((child) => extend(child, path));
+      }
+    }
+  };
+  roots.forEach((root) => extend(root, []));
+  return paths;
+};

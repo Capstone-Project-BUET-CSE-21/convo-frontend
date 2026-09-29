@@ -15,28 +15,11 @@ export const verifyBlockHash = async (signedBlock, fileBytes) => {
 };
 
 // 5.1 Task 2: confirm this block's declared previousHash actually resolves
-// to the prior block reconstructChain (pipeline/chainReconstruct.js)
-// found in the chain store. A block with no previousHash is valid as the
-// first link in the chain.
+// to a real earlier share in the durable history (resolvePriorBlockDurable
+// in pipeline/chainReconstruct.js). A block with no previousHash starts its
+// own tree and is valid on its own.
 export const verifyChainLinkage = (signedBlock, priorBlock) => {
   const { previousHash } = signedBlock.metadata;
   if (!previousHash) return true;
   return priorBlock != null && previousHash === priorBlock.fileHash;
-};
-
-// 5.1 Task 3: structured result so callers (identity mapping / UI) can
-// distinguish *why* a file was rejected instead of just pass/fail.
-// reason is one of: 'hash-mismatch' | 'chain-broken'.
-export const verifyReceivedBlock = async (signedBlock, fileBytes, priorBlock) => {
-  const hashOk = await verifyBlockHash(signedBlock, fileBytes);
-  if (!hashOk) {
-    return { valid: false, reason: "hash-mismatch" };
-  }
-
-  const chainOk = verifyChainLinkage(signedBlock, priorBlock);
-  if (!chainOk) {
-    return { valid: false, reason: "chain-broken" };
-  }
-
-  return { valid: true, reason: null };
 };
