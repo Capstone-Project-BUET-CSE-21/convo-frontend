@@ -4,9 +4,9 @@ import "./MeetingChat.css";
 import ChatFileShare from "./ChatFileShare";
 import ChatFileBubble from "./ChatFileBubble";
 import { recordFileDownload } from "../identity/fileDownloadTracking";
+import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
 const EVERYONE = "__everyone__";
-const CONFIDENTIALITY_API_BASE_URL = import.meta.env.VITE_CONFIDENTIALITY_CHAIN_API_URL;
 
 const formatStagedSize = (bytes) => {
   if (bytes == null) return "";
@@ -33,7 +33,7 @@ const MeetingChat = ({ isOpen, onClose, wsRef, dataChannelsRef, roomId, peers, p
       sessionId: roomId,
       userId: currentUser.id,
       contentHash,
-      baseUrl: CONFIDENTIALITY_API_BASE_URL,
+      baseUrl: CONFIDENTIALITY_CHAIN_URL,
     }).catch((err) => {
       console.error("Failed to record file download:", err);
     });
