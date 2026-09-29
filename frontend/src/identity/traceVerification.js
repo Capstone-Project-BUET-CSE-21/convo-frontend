@@ -1,10 +1,10 @@
 // 5.3 — Cross-session trace verification.
 //
-// Plugs into Suchi's walkChain/traceChain (pipeline/chainReconstruct.js) as
-// the verifyHop callback. This is what makes the trace/lineage screen check
-// against Fariha's durable server-side chain instead of a local in-memory
-// reconstruction (per the plan: "Check against Fariha's durable server-side
-// chain, not local reconstruction").
+// Used by the trace screen (screens/FileTraceScreen.jsx) to re-verify every
+// share in a file's history, and by the send flow
+// (pipeline/provenancePipeline.js) to re-verify the parent share before
+// signing on top of it. Checks against the durable server-side history,
+// never a local in-memory reconstruction.
 //
 // ChainHistoryResponseDto now includes fileHash + signature (see
 // convo-file-sharing's TransferMetadataService.getChainHistory), so
@@ -23,18 +23,13 @@
 // recipient list they happened to pick at send time) would be flagged as
 // "unauthorized" with no way to tell that apart from an actual leak. That's
 // a false-positive rate real usage can't tolerate, not a fixable edge case.
-//
-// STILL OPEN: this depends on Anisa's real AES-GCM/keys work being live
-// and on the frontend actually sending contentHash on PATCH (see
-// pipeline/provenancePipeline.js — nothing currently populates or sends
-// it), otherwise there's no history to query in the first place.
 
 import { fetchPublicKeys, verifyBlockWithHistory } from "../crypto/verify";
 
 /**
- * Builds the verifyHop callback walkChain expects: (entry) => { valid, reason }.
+ * Builds a verifier for one share of a file: (entry) => { valid, reason }.
  *
- * @param {string} contentHash the content hash the trace screen is walking
+ * @param {string} contentHash the content hash every share must belong to
  */
 export const makeVerifyHop = (contentHash) => async (entry) => {
   // Cheapest, always-available check: this row actually belongs to the

@@ -4,8 +4,7 @@ import { formatTransferTimelineLabel } from "../identity/senderIdentity";
 
 // 5.2 Task 4: rejection copy, keyed by the reason codes produced by
 // identity/verifyIncomingTransfer.js (single-hop, live-receipt path) and
-// identity/traceVerification.js (multi-hop, trace-screen path — Suchi's
-// walkChain stop conditions).
+// identity/traceVerification.js (per-share checks on the trace screen).
 const REJECTION_COPY = {
   "hash-mismatch": "This file's contents don't match what the sender signed.",
   "chain-broken": "This file breaks the provenance chain for this session.",
