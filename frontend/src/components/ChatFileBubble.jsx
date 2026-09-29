@@ -22,7 +22,6 @@ const formatBytes = (bytes) => {
 // instead of bolting on dedicated UI for it. Video has no equivalent
 // click-to-save link today, so it isn't tracked yet.
 const ChatFileBubble = ({ fileUrl, fileName, fileType, fileSize, provenance, contentHash, onDownload }) => {
-  console.log("ChatFileBubble props:", { fileName, fileType, fileSize });
   const badge = provenance && (
     <ProvenanceBadge
       verified={provenance.valid}

@@ -76,7 +76,6 @@ export const createDataChannelTransfer = ({
       if (msg.kind === "wrapped-file-end") {
         const transfer = incomingTransfersRef.current.get(peerId);
         if (!transfer || transfer.meta.transferId !== msg.transferId) return;
-        console.log("File metadata received:", transfer.meta.fileName, transfer.meta);
         if (transfer.chunkCount == null || transfer.chunks.size !== transfer.chunkCount) {
           setChatMessages((prev) => [
             ...prev,
@@ -125,9 +124,7 @@ export const createDataChannelTransfer = ({
           return;
         }
 
-        // with:
         let decryptedBuffer;
-        console.log("Decrypting as authUser.id:", authUser.id);
         try {
           decryptedBuffer = await decryptPayload(wrappedBuffer, {
             recipientId: authUser.id,

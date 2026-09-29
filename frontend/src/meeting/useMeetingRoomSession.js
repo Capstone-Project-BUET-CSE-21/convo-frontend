@@ -407,9 +407,7 @@ const useMeetingRoomSession = ({
 
       // No client-side registration call here any more — convo-backend's
       // own meeting-entry flow (makeMeetingEntry, above) already records
-      // real presence in meeting_user, which is what the trace/lineage
-      // screen's isAuthorizedHop check reads (via convo-file-sharing's own
-      // call to convo-backend — see identity/traceVerification.js).
+      // real presence in meeting_user.
 
       const token = getAuthToken();
       const wsUrl = `${WS_URL}/ws` + (token ? `?token=${encodeURIComponent(token)}` : "");
@@ -533,7 +531,6 @@ const useMeetingRoomSession = ({
       };
 
       ws.onerror = (e) => console.error("WebSocket error:", e);
-      ws.onclose = () => console.log("WebSocket closed");
 
       // Self-healing retry: re-attempt any roster peer we're not connected to.
       reconcileTimerRef.current = setInterval(manager.reconcilePeers, 3000);

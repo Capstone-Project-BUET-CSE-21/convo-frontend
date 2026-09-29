@@ -25,7 +25,6 @@ export const encryptPayload = async (wrappedBuffer, { senderId, encryptionKeys }
   }
 
   const envelope = { senderId, iv, ciphertext, recipients };
-  console.log("SENDING — ciphertext length:", ciphertext.length, "iv:", iv);
   return new TextEncoder().encode(JSON.stringify(envelope)).buffer;
 }
 
@@ -57,6 +56,5 @@ export const decryptPayload = async (envelopeBuffer, { recipientId, senderPublic
   const sharedKey = await deriveSharedKey(recipientPrivateKey, senderPublicKey);
   const rawContentKeyBytes = await decryptData(sharedKey, myEntry.wrappedKey, myEntry.iv);
   const contentKey = await importRawKey(new TextDecoder().decode(rawContentKeyBytes));
-  console.log("RECEIVING — ciphertext length:", ciphertext.length, "iv:", iv);
   return decryptData(contentKey, ciphertext, iv);
 }
