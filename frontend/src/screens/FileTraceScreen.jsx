@@ -5,8 +5,7 @@ import "./FileTraceScreen.css";
 import { traceChain } from "../pipeline/chainReconstruct";
 import { makeVerifyHop } from "../identity/traceVerification";
 import { formatRelativeTime } from "../identity/senderIdentity";
-import { fetchUserDisplayNames } from "../identity/userLookup";
-import { CONFIDENTIALITY_CHAIN_URL, BACKEND_URL } from "../config/apiConfig";
+import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 
 // 5.3 — The trace/lineage screen: meeting-by-meeting, person-by-person,
 // with "chain broken here" rendered as a visually distinct state (matching
@@ -16,17 +15,18 @@ import { CONFIDENTIALITY_CHAIN_URL, BACKEND_URL } from "../config/apiConfig";
 // that happened through Convo itself, so legitimate sharing through any
 // other channel looked identical to an actual leak).
 //
+// Sender display names come straight from convo-file-sharing's chain
+// response (senderDisplayName — resolved server-side there, via its own
+// call to convo-backend) rather than a second call this component used to
+// make to convo-backend itself. peerNames (live meeting signaling) still
+// wins when both have an entry, since it's the freshest source for a
+// sender in the viewer's own current meeting.
+//
 // @param {string} contentHash   content hash of the file being traced
 // @param {string} startFileHash fileHash of the hop the user opened this from
 // @param {Map}    [peerNames]   peerId -> display name, if the caller has one handy
 const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
   const [state, setState] = useState({ status: "loading", hops: [], stopReason: null, error: null });
-  // Names resolved from convo-backend for senderIds that peerNames doesn't
-  // already know (i.e. hops from meetings the viewer wasn't part of).
-  // Kept separate from peerNames rather than merged into it so a caller's
-  // live-signaling name (more likely to be fresh/exactly what they expect)
-  // always wins if both sources somehow have an entry for the same id.
-  const [resolvedNames, setResolvedNames] = useState(new Map());
 
   const verifyHop = useMemo(() => makeVerifyHop(contentHash), [contentHash]);
 
@@ -35,7 +35,6 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
 
     const run = async () => {
       setState({ status: "loading", hops: [], stopReason: null, error: null });
-      setResolvedNames(new Map());
       try {
         const { hops, stopReason } = await traceChain(
           contentHash,
@@ -45,23 +44,6 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
         );
         if (!cancelled) {
           setState({ status: "done", hops, stopReason, error: null });
-        }
-
-        // Best-effort: resolve real display names for every sender this
-        // trace touched. A failure here shouldn't block rendering the
-        // chain itself — hops just fall back to a truncated id, same as
-        // before this lookup existed.
-        const senderIds = hops.map((hop) => hop.entry?.senderId).filter(Boolean);
-        const unknownIds = senderIds.filter((id) => !peerNames?.get?.(id));
-        if (unknownIds.length > 0) {
-          try {
-            const names = await fetchUserDisplayNames(unknownIds, BACKEND_URL);
-            if (!cancelled) {
-              setResolvedNames(names);
-            }
-          } catch (err) {
-            console.error("Resolving sender names failed:", err);
-          }
         }
       } catch (err) {
         if (!cancelled) {
@@ -74,10 +56,10 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
     return () => {
       cancelled = true;
     };
-  }, [contentHash, startFileHash, verifyHop, peerNames]);
+  }, [contentHash, startFileHash, verifyHop]);
 
-  const nameFor = (userId) =>
-    peerNames?.get?.(userId) || resolvedNames.get(userId) || `User ${String(userId).slice(0, 8)}`;
+  const nameFor = (userId, chainDisplayName) =>
+    peerNames?.get?.(userId) || chainDisplayName || `User ${String(userId).slice(0, 8)}`;
 
   if (state.status === "loading") {
     return <div className="file-trace-screen file-trace-screen--loading">Tracing file history…</div>;
@@ -122,7 +104,7 @@ const FileTraceScreen = ({ contentHash, startFileHash, peerNames }) => {
                     )}
                   </div>
                   <div className="file-trace-hop__person">
-                    Shared by <strong>{nameFor(entry.senderId)}</strong>
+                    Shared by <strong>{nameFor(entry.senderId, entry.senderDisplayName)}</strong>
                     {entry.timestamp && (
                       <span className="file-trace-hop__time"> · {formatRelativeTime(entry.timestamp)}</span>
                     )}

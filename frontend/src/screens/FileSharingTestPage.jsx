@@ -6,9 +6,8 @@ import "./FileSharingTestPage.css";
 import { computeContentHash } from "../crypto/hashing";
 import { fetchChainHistory } from "../pipeline/chainReconstruct";
 import FileTraceScreen from "./FileTraceScreen";
-import { CONFIDENTIALITY_CHAIN_URL, BACKEND_URL } from "../config/apiConfig";
+import { CONFIDENTIALITY_CHAIN_URL } from "../config/apiConfig";
 import { fetchDownloadHistory } from "../identity/fileDownloadTracking";
-import { fetchUserDisplayNames } from "../identity/userLookup";
 
 // Two real, backend-backed lookups for a file you actually have a copy of —
 // no fabricated identities, no simulated hops, no new records created by
@@ -60,11 +59,6 @@ const FileSharingTestPage = () => {
   // Downloads tab state
   const [downloadHash, setDownloadHash] = useState(null);
   const [downloads, setDownloads] = useState(null);
-  // userId -> display name, resolved after a lookup — same approach as
-  // FileTraceScreen's resolvedNames, since download rows only carry raw
-  // userIds (identity/fileDownloadTracking.js's DownloadRecordDto has no
-  // name field).
-  const [downloaderNames, setDownloaderNames] = useState(new Map());
 
   const resetResults = () => {
     setError(null);
@@ -72,7 +66,6 @@ const FileSharingTestPage = () => {
     setChain(null);
     setDownloadHash(null);
     setDownloads(null);
-    setDownloaderNames(new Map());
   };
 
   const selectFile = (f) => {
@@ -130,18 +123,6 @@ const FileSharingTestPage = () => {
 
       const history = await fetchDownloadHistory(hash, CONFIDENTIALITY_CHAIN_URL);
       setDownloads(history);
-
-      // Best-effort: a failed name lookup shouldn't hide the download
-      // records themselves — rows just fall back to a truncated id.
-      const userIds = (history ?? []).map((d) => d.userId).filter(Boolean);
-      if (userIds.length > 0) {
-        try {
-          const names = await fetchUserDisplayNames(userIds, BACKEND_URL);
-          setDownloaderNames(names);
-        } catch (err) {
-          console.error("Resolving downloader names failed:", err);
-        }
-      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -273,7 +254,7 @@ const FileSharingTestPage = () => {
                 <div key={d.id} className="fst-download-entry">
                   <Row
                     label="Downloaded by"
-                    value={downloaderNames.get(d.userId) || `User ${String(d.userId).slice(0, 8)}`}
+                    value={d.userDisplayName || `User ${String(d.userId).slice(0, 8)}`}
                   />
                   <Row label="Session" value={d.sessionId} />
                   <Row label="At" value={new Date(d.downloadedAt).toLocaleString()} />
